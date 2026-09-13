@@ -29,7 +29,7 @@ module.exports = {
           `Ou écris directement dans #${config.channels.annonceRelay} : ton message sera republié en embed.`,
           "",
           "**Missions**",
-          "`/mission` — proposer une idée de mission (formulaire), validée par le COMMANDEMENT",
+          "`/mission panneau` — poster le panneau \"Proposer une mission\" (formulaire validé par le COMMANDEMENT)",
           "",
           "**Tickets**",
           "`/ticket panneau` — poster le panneau d'ouverture de ticket",

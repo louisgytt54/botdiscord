@@ -1,63 +1,60 @@
 // ============================================================================
-// /mission — ouvre un questionnaire (modal) pour proposer une idée de mission.
-// Accessible à tout le monde (pas réservé au COMMANDEMENT) : n'importe quel
-// membre peut proposer une mission, elle est envoyée dans le salon de
-// validation, et le COMMANDEMENT peut l'accepter ou la refuser par bouton.
+// /mission panneau — poste un bouton "Proposer une mission" dans ce salon.
+// N'importe quel membre peut cliquer dessus pour remplir le formulaire de
+// proposition ; la proposition est envoyée dans le salon de validation, et le
+// COMMANDEMENT peut l'accepter ou la refuser par bouton (voir interactionCreate.js).
 // ============================================================================
 
 const {
   SlashCommandBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
+  PermissionFlagsBits,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } = require("discord.js");
+const config = require("../config");
+const { hasStaffRole } = require("../utils/resolve");
+const { errorEmbed, baseEmbed } = require("../utils/embeds");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("mission")
-    .setDescription("Proposer une idée de nouvelle mission au COMMANDEMENT"),
+    .setDescription("Gestion des propositions de mission")
+    .addSubcommand((sub) =>
+      sub
+        .setName("panneau")
+        .setDescription("Poster le panneau de proposition de mission dans ce salon")
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
-    const modal = new ModalBuilder()
-      .setCustomId("mission_modal")
-      .setTitle("Proposition de mission");
+    if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
+      return interaction.reply({
+        embeds: [
+          errorEmbed(
+            "Permission refusée",
+            `Seul le rôle **${config.roles.commandement}** peut poster le panneau de proposition de mission.`
+          ),
+        ],
+        ephemeral: true,
+      });
+    }
 
-    const nom = new TextInputBuilder()
-      .setCustomId("mission_nom")
-      .setLabel("Nom de la mission")
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100);
+    const embed = baseEmbed()
+      .setTitle("🆕 Proposer une mission")
+      .setDescription(
+        "Tu as une idée de mission pour le serveur ? Clique sur le bouton ci-dessous pour remplir le formulaire (nom, moyens à déclencher, victimes, détails). Le COMMANDEMENT validera ou refusera ta proposition."
+      );
 
-    const moyens = new TextInputBuilder()
-      .setCustomId("mission_moyens")
-      .setLabel("Moyens à déclencher (véhicules, unités...)")
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true)
-      .setMaxLength(500);
-
-    const victimes = new TextInputBuilder()
-      .setCustomId("mission_victimes")
-      .setLabel("Y a-t-il des victimes ? (Oui / Non)")
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(50);
-
-    const details = new TextInputBuilder()
-      .setCustomId("mission_details")
-      .setLabel("Détails / scénario de la mission")
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(false)
-      .setMaxLength(1000);
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(nom),
-      new ActionRowBuilder().addComponents(moyens),
-      new ActionRowBuilder().addComponents(victimes),
-      new ActionRowBuilder().addComponents(details)
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("mission_open")
+        .setLabel("Proposer une mission")
+        .setEmoji("🆕")
+        .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.showModal(modal);
+    await interaction.channel.send({ embeds: [embed], components: [row] });
+    await interaction.reply({ content: "✅ Panneau de proposition de mission posté.", ephemeral: true });
   },
 };
