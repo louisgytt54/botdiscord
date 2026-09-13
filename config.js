@@ -53,6 +53,10 @@ module.exports = {
 
     // Salon où le panneau "Ouvrir un ticket" est posté
     ticketPanel: "support",
+
+    // Salon où sont envoyées les propositions de mission (idées d'ajout de
+    // missions) faites via /mission, avec boutons Accepter/Refuser
+    missionsPropositions: "propositions-missions",
   },
 
   // ----------------------------------------------------------------------

@@ -211,11 +211,102 @@ module.exports = {
           );
           return;
         }
+        // ----- Accepter / Refuser une proposition de mission -----
+        if (id.startsWith("mission_accept_") || id.startsWith("mission_refuse_")) {
+          if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
+            return interaction.reply({
+              embeds: [errorEmbed("Permission refusée", `Seul le rôle **${config.roles.commandement}** peut traiter les propositions de mission.`)],
+              ephemeral: true,
+            });
+          }
+
+          // Le customId a la forme mission_accept_<userId>_<timestamp>
+          const parts = id.split("_");
+          const proposerId = parts[2];
+          const accepted = id.startsWith("mission_accept_");
+          const proposerMember = await interaction.guild.members.fetch(proposerId).catch(() => null);
+
+          const original = interaction.message.embeds[0];
+          const updatedEmbed = baseEmbed()
+            .setTitle(original.title)
+            .setDescription(original.description)
+            .addFields(original.fields || [])
+            .setColor(accepted ? config.branding.colorSuccess : config.branding.colorDanger)
+            .setFooter({ text: accepted ? `✅ Acceptée par ${interaction.user.tag}` : `❌ Refusée par ${interaction.user.tag}` });
+
+          await interaction.update({ embeds: [updatedEmbed], components: [] });
+
+          if (proposerMember) {
+            proposerMember
+              .send({
+                embeds: [
+                  accepted
+                    ? successEmbed("Mission acceptée", `Ta proposition de mission sur **${interaction.guild.name}** a été acceptée par le COMMANDEMENT !`)
+                    : errorEmbed("Mission refusée", `Ta proposition de mission sur **${interaction.guild.name}** a été refusée.`),
+                ],
+              })
+              .catch(() => {});
+          }
+
+          await log(
+            interaction.guild,
+            "server",
+            baseEmbed()
+              .setTitle(accepted ? "✅ Proposition de mission acceptée" : "❌ Proposition de mission refusée")
+              .setDescription(`Proposée par : <@${proposerId}>\nTraitée par : ${interaction.user}`)
+          );
+          return;
+        }
       }
 
       // ---------------------------------------------------------------
       // 3) MODALS
       // ---------------------------------------------------------------
+      if (interaction.isModalSubmit() && interaction.customId === "mission_modal") {
+        const nom = interaction.fields.getTextInputValue("mission_nom");
+        const moyens = interaction.fields.getTextInputValue("mission_moyens");
+        const victimes = interaction.fields.getTextInputValue("mission_victimes");
+        const details = interaction.fields.getTextInputValue("mission_details") || "Aucun détail supplémentaire";
+
+        const channel = findChannel(interaction.guild, config.channels.missionsPropositions);
+        if (!channel) {
+          return interaction.reply({
+            embeds: [errorEmbed("Configuration manquante", `Le salon **${config.channels.missionsPropositions}** est introuvable.`)],
+            ephemeral: true,
+          });
+        }
+
+        const embed = baseEmbed()
+          .setTitle("🆕 Proposition de mission")
+          .setDescription(`Proposée par : ${interaction.user}`)
+          .addFields(
+            { name: "Nom de la mission", value: nom },
+            { name: "Moyens à déclencher", value: moyens },
+            { name: "Victimes", value: victimes, inline: true },
+            { name: "Détails", value: details }
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`mission_accept_${interaction.user.id}_${Date.now()}`)
+            .setLabel("Accepter")
+            .setEmoji("✅")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`mission_refuse_${interaction.user.id}_${Date.now()}`)
+            .setLabel("Refuser")
+            .setEmoji("❌")
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+        await interaction.reply({
+          embeds: [successEmbed("Proposition envoyée", "Ta proposition de mission a bien été transmise au COMMANDEMENT. Tu recevras une réponse par message privé.")],
+          ephemeral: true,
+        });
+        return;
+      }
+
       if (interaction.isModalSubmit() && interaction.customId === "candidature_modal") {
         const motivation = interaction.fields.getTextInputValue("candidature_motivation");
         const experience = interaction.fields.getTextInputValue("candidature_experience") || "Non renseigné";
