@@ -18,6 +18,10 @@ const { findRole, findChannel, hasStaffRole } = require("../utils/resolve");
 const { baseEmbed, successEmbed, errorEmbed } = require("../utils/embeds");
 const { log } = require("../utils/logger");
 const { nextTicketNumber } = require("../utils/storage");
+const candidatureFlow = require("../interactions/candidatureFlow");
+const applicationReview = require("../interactions/applicationReview");
+const membreFlow = require("../interactions/membreFlow");
+const departementFlow = require("../interactions/departementFlow");
 
 module.exports = {
   name: "interactionCreate",
@@ -47,10 +51,63 @@ module.exports = {
       }
 
       // ---------------------------------------------------------------
+      // 1bis) SELECT MENUS (parcours candidature / affectation manuelle)
+      // ---------------------------------------------------------------
+      if (interaction.isStringSelectMenu()) {
+        const id = interaction.customId;
+
+        if (id === "candidature_select_service") return candidatureFlow.handleServiceSelect(interaction);
+        if (id.startsWith("cdep:")) return candidatureFlow.handleDepartmentSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("ccnt:")) {
+          const [, serviceSlug, departmentId] = id.split(":");
+          return candidatureFlow.handleCenterSelect(interaction, serviceSlug, departmentId);
+        }
+
+        if (id.startsWith("masvc:")) return membreFlow.handleAssignServiceSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("madep:")) {
+          const [, targetId, serviceSlug] = id.split(":");
+          return membreFlow.handleAssignDepartmentSelect(interaction, targetId, serviceSlug);
+        }
+        if (id.startsWith("macnt:")) {
+          const [, targetId, serviceSlug, departmentId] = id.split(":");
+          return membreFlow.handleAssignCenterSelect(interaction, targetId, serviceSlug, departmentId);
+        }
+        if (id.startsWith("masusp:")) return membreFlow.handleSuspendSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("mareact:")) return membreFlow.handleReactivateSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("maretire:")) return membreFlow.handleRevokeSelect(interaction, id.split(":")[1]);
+        if (id === "depcntmgr") return departementFlow.handleCenterManageSelect(interaction);
+        return;
+      }
+
+      // ---------------------------------------------------------------
       // 2) BOUTONS
       // ---------------------------------------------------------------
       if (interaction.isButton()) {
         const id = interaction.customId;
+
+        // ----- Parcours candidature (confirmation / annulation) -----
+        if (id.startsWith("cconf:")) return candidatureFlow.handleConfirmButton(interaction, id.split(":")[1]);
+        if (id === "ccancel") return candidatureFlow.handleCancel(interaction);
+
+        // ----- Traitement staff des candidatures -----
+        if (id.startsWith("appacc:")) return applicationReview.handleAcceptButton(interaction, id.split(":")[1]);
+        if (id.startsWith("appaccok:")) return applicationReview.handleAcceptConfirm(interaction, id.split(":")[1]);
+        if (id.startsWith("appaccno:")) return applicationReview.handleAcceptCancel(interaction);
+        if (id.startsWith("apprej:")) return applicationReview.handleRejectButton(interaction, id.split(":")[1]);
+        if (id.startsWith("appinfo:")) return applicationReview.handleInfoButton(interaction, id.split(":")[1]);
+
+        // ----- Affectation manuelle / suspension / réactivation / retrait -----
+        if (id.startsWith("maconf:")) {
+          const [, targetId, centerId] = id.split(":");
+          return membreFlow.handleAssignConfirm(interaction, targetId, centerId);
+        }
+        if (id.startsWith("mareactok:")) return membreFlow.handleReactivateConfirm(interaction, id.split(":")[1]);
+
+        // ----- Gestion des centres (/departement centre-gerer) -----
+        if (id.startsWith("depopen:")) return departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], true);
+        if (id.startsWith("depclose:")) return departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], false);
+        if (id.startsWith("depact:")) return departementFlow.handleToggleActive(interaction, id.split(":")[1], true);
+        if (id.startsWith("depdeact:")) return departementFlow.handleToggleActive(interaction, id.split(":")[1], false);
 
         // ----- Ouvrir un ticket -----
         if (id === "ticket_open") {
@@ -125,43 +182,6 @@ module.exports = {
           return;
         }
 
-        // ----- Postuler (candidature) -----
-        if (id === "candidature_open") {
-          const modal = new ModalBuilder()
-            .setCustomId("candidature_modal")
-            .setTitle("Candidature Opérateur");
-
-          const motivation = new TextInputBuilder()
-            .setCustomId("candidature_motivation")
-            .setLabel("Pourquoi veux-tu devenir opérateur ?")
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true)
-            .setMaxLength(1000);
-
-          const experience = new TextInputBuilder()
-            .setCustomId("candidature_experience")
-            .setLabel("As-tu déjà de l'expérience (RP, jeu) ?")
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(false)
-            .setMaxLength(1000);
-
-          const dispo = new TextInputBuilder()
-            .setCustomId("candidature_dispo")
-            .setLabel("Quelles sont tes disponibilités ?")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-            .setMaxLength(200);
-
-          modal.addComponents(
-            new ActionRowBuilder().addComponents(motivation),
-            new ActionRowBuilder().addComponents(experience),
-            new ActionRowBuilder().addComponents(dispo)
-          );
-
-          await interaction.showModal(modal);
-          return;
-        }
-
         // ----- Proposer une mission -----
         if (id === "mission_open") {
           const modal = new ModalBuilder()
@@ -207,55 +227,6 @@ module.exports = {
           return;
         }
 
-        // ----- Accepter / Refuser une candidature -----
-        if (id.startsWith("candidature_accept_") || id.startsWith("candidature_refuse_")) {
-          if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
-            return interaction.reply({
-              embeds: [errorEmbed("Permission refusée", `Seul le rôle **${config.roles.commandement}** peut traiter les candidatures.`)],
-              ephemeral: true,
-            });
-          }
-
-          const candidateId = id.split("_").pop();
-          const candidateMember = await interaction.guild.members.fetch(candidateId).catch(() => null);
-          const accepted = id.startsWith("candidature_accept_");
-
-          if (accepted && candidateMember) {
-            const role = findRole(interaction.guild, config.roles.operateur);
-            if (role) await candidateMember.roles.add(role);
-          }
-
-          const original = interaction.message.embeds[0];
-          const updatedEmbed = baseEmbed()
-            .setTitle(original.title)
-            .setDescription(original.description)
-            .addFields(original.fields || [])
-            .setColor(accepted ? config.branding.colorSuccess : config.branding.colorDanger)
-            .setFooter({ text: accepted ? `✅ Acceptée par ${interaction.user.tag}` : `❌ Refusée par ${interaction.user.tag}` });
-
-          await interaction.update({ embeds: [updatedEmbed], components: [] });
-
-          if (candidateMember) {
-            candidateMember
-              .send({
-                embeds: [
-                  accepted
-                    ? successEmbed("Candidature acceptée", `Félicitations, ta candidature d'opérateur sur **${interaction.guild.name}** a été acceptée !`)
-                    : errorEmbed("Candidature refusée", `Ta candidature d'opérateur sur **${interaction.guild.name}** a été refusée.`),
-                ],
-              })
-              .catch(() => {});
-          }
-
-          await log(
-            interaction.guild,
-            "server",
-            baseEmbed()
-              .setTitle(accepted ? "✅ Candidature acceptée" : "❌ Candidature refusée")
-              .setDescription(`Candidat : <@${candidateId}>\nTraitée par : ${interaction.user}`)
-          );
-          return;
-        }
         // ----- Accepter / Refuser une proposition de mission -----
         if (id.startsWith("mission_accept_") || id.startsWith("mission_refuse_")) {
           if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
@@ -307,6 +278,15 @@ module.exports = {
       // ---------------------------------------------------------------
       // 3) MODALS
       // ---------------------------------------------------------------
+      if (interaction.isModalSubmit()) {
+        const mid = interaction.customId;
+        if (mid.startsWith("cmodal:")) return candidatureFlow.handleModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("apprejm:")) return applicationReview.handleRejectModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("appinfom:")) return applicationReview.handleInfoModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("masuspm:")) return membreFlow.handleSuspendModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("maretm:")) return membreFlow.handleRevokeModalSubmit(interaction, mid.split(":")[1]);
+      }
+
       if (interaction.isModalSubmit() && interaction.customId === "mission_modal") {
         const nom = interaction.fields.getTextInputValue("mission_nom");
         const moyens = interaction.fields.getTextInputValue("mission_moyens");
@@ -350,48 +330,6 @@ module.exports = {
           ephemeral: true,
         });
         return;
-      }
-
-      if (interaction.isModalSubmit() && interaction.customId === "candidature_modal") {
-        const motivation = interaction.fields.getTextInputValue("candidature_motivation");
-        const experience = interaction.fields.getTextInputValue("candidature_experience") || "Non renseigné";
-        const dispo = interaction.fields.getTextInputValue("candidature_dispo");
-
-        const channel = findChannel(interaction.guild, config.channels.candidatures);
-        if (!channel) {
-          return interaction.reply({
-            embeds: [errorEmbed("Configuration manquante", `Le salon **${config.channels.candidatures}** est introuvable.`)],
-            ephemeral: true,
-          });
-        }
-
-        const embed = baseEmbed()
-          .setTitle("📋 Nouvelle candidature Opérateur")
-          .setDescription(`Candidat : ${interaction.user}`)
-          .addFields(
-            { name: "Motivation", value: motivation },
-            { name: "Expérience", value: experience },
-            { name: "Disponibilités", value: dispo }
-          );
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`candidature_accept_${interaction.user.id}`)
-            .setLabel("Accepter")
-            .setEmoji("✅")
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`candidature_refuse_${interaction.user.id}`)
-            .setLabel("Refuser")
-            .setEmoji("❌")
-            .setStyle(ButtonStyle.Danger)
-        );
-
-        await channel.send({ embeds: [embed], components: [row] });
-        await interaction.reply({
-          embeds: [successEmbed("Candidature envoyée", "Ta candidature a bien été transmise au COMMANDEMENT. Tu recevras une réponse par message privé.")],
-          ephemeral: true,
-        });
       }
     } catch (err) {
       console.error("[interactionCreate] Erreur inattendue :", err);

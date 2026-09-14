@@ -34,7 +34,9 @@ module.exports = {
   // SALONS (channel names OR IDs — voir utils/resolve.js)
   // ----------------------------------------------------------------------
   channels: {
-    // Salon où les candidatures "opérateur" sont envoyées avec boutons Accepter/Refuser
+    // Salon où sont publiées les nouvelles candidatures service/département/centre
+    // (boutons Accepter / Refuser / Demander des informations).
+    // Voir config/services.js pour la définition des services eux-mêmes.
     candidatures: "candidatures-opérateur",
 
     // Salon où sont loggées toutes les actions de modération (ban/kick/mute/warn)

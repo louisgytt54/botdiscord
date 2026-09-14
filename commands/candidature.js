@@ -1,33 +1,33 @@
 // ============================================================================
-// /candidature panneau — poste un message avec un bouton "📋 Postuler" dans
-// #candidatures-opérateur. Ouvre un modal pour poser des questions, puis
-// publie la candidature avec des boutons Accepter/Refuser pour le COMMANDEMENT.
+// /candidature panneau — poste le panneau "🚨 REJOINDRE UN SERVICE" avec un
+// select menu des services. La suite du parcours (département -> centre ->
+// confirmation -> formulaire) est gérée dans events/interactionCreate.js.
 // ============================================================================
 
 const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  StringSelectMenuBuilder,
 } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole } = require("../utils/resolve");
+const { isRecruiter } = require("../services/permissions");
 const { errorEmbed, baseEmbed } = require("../utils/embeds");
+const { listServiceRows } = require("../services/supabase/catalog");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("candidature")
-    .setDescription("Gestion des candidatures opérateur")
+    .setDescription("Gestion des candidatures de service")
     .addSubcommand((sub) =>
       sub
         .setName("panneau")
-        .setDescription("Poster le panneau de candidature dans ce salon")
+        .setDescription("Poster le panneau « Rejoindre un service » dans ce salon")
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
   async execute(interaction) {
-    if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
+    if (!isRecruiter(interaction.member)) {
       return interaction.reply({
         embeds: [
           errorEmbed(
@@ -39,21 +39,42 @@ module.exports = {
       });
     }
 
+    const services = await listServiceRows();
+    const activeServices = services.filter((s) => s.active !== false);
+
+    if (activeServices.length === 0) {
+      return interaction.reply({
+        embeds: [
+          errorEmbed(
+            "Aucun service disponible",
+            "Aucun service actif n'est configuré dans Supabase pour le moment."
+          ),
+        ],
+        ephemeral: true,
+      });
+    }
+
     const embed = baseEmbed()
-      .setTitle("📋 Candidature Opérateur")
+      .setTitle("🚨 REJOINDRE UN SERVICE")
       .setDescription(
-        "Tu veux rejoindre l'équipe des opérateurs de régulation (15-17-18-112) ?\n\nClique sur **Postuler** pour remplir ta candidature."
+        "Intégrez l'un des centres opérationnels du jeu et participez à la gestion des interventions.\n\nChoisissez ci-dessous le service que vous souhaitez rejoindre."
       );
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("candidature_open")
-        .setLabel("Postuler")
-        .setEmoji("📋")
-        .setStyle(ButtonStyle.Primary)
-    );
+    const select = new StringSelectMenuBuilder()
+      .setCustomId("candidature_select_service")
+      .setPlaceholder("Choisissez un service...")
+      .addOptions(
+        activeServices.map((s) => ({
+          label: s.label,
+          value: s.slug,
+          description: `${s.centerTypeLabel || ""}`.slice(0, 100) || undefined,
+          emoji: s.emoji || undefined,
+        }))
+      );
+
+    const row = new ActionRowBuilder().addComponents(select);
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: "✅ Panneau de candidature posté.", ephemeral: true });
+    await interaction.reply({ content: "✅ Panneau « Rejoindre un service » posté.", ephemeral: true });
   },
 };
