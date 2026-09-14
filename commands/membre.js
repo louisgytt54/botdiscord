@@ -58,14 +58,20 @@ module.exports = {
       return interaction.reply({ embeds: [errorEmbed("Permission refusée", "Réservé au staff.")], ephemeral: true });
     }
 
+    // On accuse réception TOUT DE SUITE (avant le moindre appel Supabase) :
+    // le bot fait ensuite plusieurs allers-retours en base à la suite, ce qui
+    // peut dépasser la fenêtre de 3s de Discord pour un premier reply() et
+    // provoquer une erreur "Unknown interaction" (code 10062). deferReply()
+    // étend cette fenêtre à 15 minutes ; on utilise editReply() partout après.
+    await interaction.deferReply({ ephemeral: true });
+
     const target = interaction.options.getUser("membre", true);
     const sub = interaction.options.getSubcommand();
 
     const profile = await getProfileByDiscordId(target.id);
     if (!profile) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [errorEmbed("Compte jeu introuvable", `${target} ne s'est jamais connecté au jeu avec Discord.`)],
-        ephemeral: true,
       });
     }
 
@@ -77,9 +83,8 @@ module.exports = {
     const filtered = statusFilter ? assignments.filter((a) => a.status === statusFilter) : assignments.filter((a) => a.status !== "revoked");
 
     if (filtered.length === 0) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [errorEmbed("Aucune affectation", `${target} n'a aucune affectation ${statusFilter ? STATUS_LABELS[statusFilter].toLowerCase() : ""} à traiter.`)],
-        ephemeral: true,
       });
     }
 
@@ -101,10 +106,9 @@ module.exports = {
       .setPlaceholder("Choisissez une affectation...")
       .addOptions(options.slice(0, 25));
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [baseEmbed().setTitle(`${target.tag}`).setDescription("Choisissez l'affectation concernée.")],
       components: [new ActionRowBuilder().addComponents(select)],
-      ephemeral: true,
     });
   },
 };
@@ -113,7 +117,7 @@ async function handleAffecter(interaction, target) {
   const services = await listServiceRows();
   const active = services.filter((s) => s.active !== false);
   if (active.length === 0) {
-    return interaction.reply({ embeds: [errorEmbed("Aucun service", "Aucun service actif configuré.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Aucun service", "Aucun service actif configuré.")] });
   }
 
   const select = new StringSelectMenuBuilder()
@@ -121,10 +125,9 @@ async function handleAffecter(interaction, target) {
     .setPlaceholder("Choisissez un service...")
     .addOptions(active.map((s) => ({ label: s.label, value: s.slug, emoji: s.emoji || undefined })));
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [baseEmbed().setTitle(`Affecter ${target.tag}`).setDescription("Choisissez le service.")],
     components: [new ActionRowBuilder().addComponents(select)],
-    ephemeral: true,
   });
 }
 
@@ -133,9 +136,8 @@ async function handleInfo(interaction, target, profile) {
   const services = await listServiceRows();
 
   if (assignments.length === 0) {
-    return interaction.reply({
+    return interaction.editReply({
       embeds: [baseEmbed().setTitle(`Fiche de ${target.tag}`).setDescription("Aucune candidature ni affectation enregistrée.")],
-      ephemeral: true,
     });
   }
 
@@ -153,8 +155,7 @@ async function handleInfo(interaction, target, profile) {
     );
   }
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [baseEmbed().setTitle(`Fiche de ${target.tag}`).setDescription(lines.join("\n\n"))],
-    ephemeral: true,
   });
 }

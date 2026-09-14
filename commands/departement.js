@@ -62,13 +62,18 @@ module.exports = {
       return interaction.reply({ embeds: [errorEmbed("Permission refusée", "Réservé au staff.")], ephemeral: true });
     }
 
+    // Voir commands/membre.js : on défère tout de suite pour ne pas risquer
+    // un "Unknown interaction" (10062) si les appels Supabase qui suivent
+    // dépassent la fenêtre de 3s de Discord (cache froid, hébergeur lent...).
+    await interaction.deferReply({ ephemeral: true });
+
     const sub = interaction.options.getSubcommand();
 
     if (sub === "ajouter-departement") {
       const code = interaction.options.getString("code", true);
       const nom = interaction.options.getString("nom", true);
       const dep = await addDepartment({ code, name: nom });
-      return interaction.reply({ embeds: [successEmbed("Département ajouté", `**${dep.code} — ${dep.name}**`)], ephemeral: true });
+      return interaction.editReply({ embeds: [successEmbed("Département ajouté", `**${dep.code} — ${dep.name}**`)] });
     }
 
     if (sub === "centre-ajouter") {
@@ -82,9 +87,8 @@ module.exports = {
       const departments = await listAllDepartments();
       const department = departments.find((d) => d.code === code);
       if (!department) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [errorEmbed("Département introuvable", `Ajoute-le d'abord avec /departement ajouter-departement (code \`${code}\`).`)],
-          ephemeral: true,
         });
       }
 
@@ -96,14 +100,14 @@ module.exports = {
         organizationName: organisation,
         discordRoleId: role ? role.id : null,
       });
-      return interaction.reply({ embeds: [successEmbed("Centre ajouté", `**${center.name}** (${department.code} — ${department.name})`)], ephemeral: true });
+      return interaction.editReply({ embeds: [successEmbed("Centre ajouté", `**${center.name}** (${department.code} — ${department.name})`)] });
     }
 
     if (sub === "centre-gerer") {
       const serviceSlug = interaction.options.getString("service", true);
       const centers = await listCentersForService(serviceSlug);
       if (centers.length === 0) {
-        return interaction.reply({ embeds: [errorEmbed("Aucun centre", "Aucun centre configuré pour ce service. Utilise /departement centre-ajouter.")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Aucun centre", "Aucun centre configuré pour ce service. Utilise /departement centre-ajouter.")] });
       }
 
       const select = new StringSelectMenuBuilder()
@@ -117,10 +121,9 @@ module.exports = {
           }))
         );
 
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [baseEmbed().setTitle("Gestion des centres").setDescription("Choisissez le centre à ouvrir/fermer/activer/désactiver.")],
         components: [new ActionRowBuilder().addComponents(select)],
-        ephemeral: true,
       });
     }
 
@@ -141,7 +144,7 @@ module.exports = {
         );
       }
 
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [
           baseEmbed()
             .setTitle("Départements & centres configurés")
@@ -151,7 +154,6 @@ module.exports = {
               }`
             ),
         ],
-        ephemeral: true,
       });
     }
   },
