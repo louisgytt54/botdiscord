@@ -45,6 +45,11 @@ module.exports = {
           "`/departement centre-ajouter` — créer un centre opérationnel (service + département)",
           "`/departement centre-gerer` — ouvrir/fermer un recrutement, activer/désactiver un centre",
           "`/departement liste` — voir la configuration actuelle",
+          "",
+          "**Formations (admin)**",
+          "`/formation creer` — ajouter une formation au catalogue (visible en jeu immédiatement)",
+          "`/formation liste` — voir le catalogue de formations",
+          "`/formation activer|desactiver` — afficher/masquer une formation en jeu",
         ].join("\n")
       );
     await interaction.reply({ embeds: [embed], ephemeral: true });

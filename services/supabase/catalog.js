@@ -22,7 +22,7 @@ async function refreshCache() {
     return { services: cache.services, departments: cache.departments, centers: cache.centers };
   }
 
-  const [{ data: services }, { data: departments }, { data: centers }] = await Promise.all([
+  const [servicesRes, departmentsRes, centersRes] = await Promise.all([
     supabase.from("services").select("id, slug, code, name, active"),
     supabase.from("departments").select("id, code, name, active").order("code"),
     supabase
@@ -32,10 +32,17 @@ async function refreshCache() {
       ),
   ]);
 
+  // Ne JAMAIS avaler une erreur Supabase silencieusement : sans ce log, une
+  // colonne manquante ou une table mal configurée donnerait juste "aucun
+  // centre configuré" sans dire pourquoi, ce qui est très trompeur à déboguer.
+  if (servicesRes.error) console.error("[catalog] Erreur chargement services :", servicesRes.error.message);
+  if (departmentsRes.error) console.error("[catalog] Erreur chargement departments :", departmentsRes.error.message);
+  if (centersRes.error) console.error("[catalog] Erreur chargement operations_centers :", centersRes.error.message);
+
   cache.at = now;
-  cache.services = services || [];
-  cache.departments = departments || [];
-  cache.centers = centers || [];
+  cache.services = servicesRes.data || [];
+  cache.departments = departmentsRes.data || [];
+  cache.centers = centersRes.data || [];
   return { services: cache.services, departments: cache.departments, centers: cache.centers };
 }
 
