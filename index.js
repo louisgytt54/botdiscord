@@ -31,6 +31,14 @@ const client = new Client({
 const commandsJSON = loadCommands(client); // charge client.commands (utilisé par interactionCreate)
 loadEvents(client); // charge tous les events/*.js
 
+// Un EventEmitter Node.js sans listener "error" PLANTE le processus dès
+// qu'un événement "error" est émis (comportement natif de Node, pas propre
+// à discord.js). Le Client discord.js peut émettre "error" (soucis de
+// websocket, etc.) : ce listener évite un crash pour ça.
+client.on("error", (err) => {
+  console.error("❌ Erreur du client Discord :", err);
+});
+
 // ----------------------------------------------------------------------
 // Enregistrement automatique des slash commands au démarrage.
 // Beaucoup d'hébergeurs (comme ecloudserv) ne permettent pas de lancer

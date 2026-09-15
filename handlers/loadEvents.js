@@ -15,10 +15,22 @@ function loadEvents(client) {
       console.warn(`[events] ${file} ignoré (manque "name" ou "execute")`);
       continue;
     }
+    // IMPORTANT : on enveloppe chaque event.execute() avec .catch(). Sans ça,
+    // une erreur/rejection dans N'IMPORTE QUEL fichier events/*.js (même un
+    // simple bug ponctuel, une erreur Supabase, etc.) devient une "unhandled
+    // promise rejection" que Node.js fait remonter jusqu'à planter TOUT LE
+    // PROCESSUS BOT — un incident réel (colonne Supabase manquante dans
+    // membreFlow.js) a provoqué exactement ça le 15/09. Ce filet de sécurité
+    // logge l'erreur au lieu de tuer le bot.
+    const safeExecute = (...args) =>
+      Promise.resolve(event.execute(...args, client)).catch((err) => {
+        console.error(`[events] Erreur non gérée dans "${event.name}" (${file}) :`, err);
+      });
+
     if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args, client));
+      client.once(event.name, safeExecute);
     } else {
-      client.on(event.name, (...args) => event.execute(...args, client));
+      client.on(event.name, safeExecute);
     }
   }
 
