@@ -39,18 +39,21 @@ module.exports = {
       });
     }
 
+    // listServiceRows() (Supabase) + channel.send() (Discord) suivent :
+    // on défère avant pour éviter un "Unknown interaction" (10062).
+    await interaction.deferReply({ ephemeral: true });
+
     const services = await listServiceRows();
     const activeServices = services.filter((s) => s.active !== false);
 
     if (activeServices.length === 0) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [
           errorEmbed(
             "Aucun service disponible",
             "Aucun service actif n'est configuré dans Supabase pour le moment."
           ),
         ],
-        ephemeral: true,
       });
     }
 
@@ -75,6 +78,6 @@ module.exports = {
     const row = new ActionRowBuilder().addComponents(select);
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: "✅ Panneau « Rejoindre un service » posté.", ephemeral: true });
+    await interaction.editReply({ content: "✅ Panneau « Rejoindre un service » posté." });
   },
 };

@@ -16,12 +16,13 @@ const { getSupabase } = require("./supabase/client");
 async function createOrActivateAssignment({ profileId, serviceId, departmentId, centerId, assignedByDiscordId }) {
   const supabase = getSupabase();
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("user_service_assignments")
     .select("id")
     .eq("user_id", profileId)
     .eq("operations_center_id", centerId)
     .maybeSingle();
+  if (existingError) throw existingError;
 
   const payload = {
     user_id: profileId,
@@ -59,21 +60,29 @@ async function createOrActivateAssignment({ profileId, serviceId, departmentId, 
 
 async function getAssignment(assignmentId) {
   const supabase = getSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_service_assignments")
     .select("*")
     .eq("id", assignmentId)
     .maybeSingle();
+  if (error) {
+    console.error("[assignments] Erreur getAssignment :", error.message);
+    throw error;
+  }
   return data;
 }
 
 async function listAssignmentsForProfile(profileId) {
   const supabase = getSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_service_assignments")
     .select("*")
     .eq("user_id", profileId)
     .order("assigned_at", { ascending: false });
+  if (error) {
+    console.error("[assignments] Erreur listAssignmentsForProfile :", error.message);
+    throw error;
+  }
   return data || [];
 }
 
@@ -87,7 +96,11 @@ async function listActiveAssignmentsForService(profileId, serviceId, excludeAssi
     .eq("service_id", serviceId)
     .eq("status", "active");
   if (excludeAssignmentId) query = query.neq("id", excludeAssignmentId);
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) {
+    console.error("[assignments] Erreur listActiveAssignmentsForService :", error.message);
+    throw error;
+  }
   return data || [];
 }
 

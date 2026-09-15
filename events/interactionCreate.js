@@ -111,6 +111,10 @@ module.exports = {
 
         // ----- Ouvrir un ticket -----
         if (id === "ticket_open") {
+          // La création du salon + l'envoi du message d'accueil peuvent
+          // prendre plus de 3s (appels Discord eux-mêmes) : on défère avant.
+          await interaction.deferReply({ ephemeral: true });
+
           const guild = interaction.guild;
           const category = findChannel(guild, config.channels.ticketCategory);
           const number = nextTicketNumber();
@@ -166,9 +170,8 @@ module.exports = {
             components: [closeRow],
           });
 
-          await interaction.reply({
+          await interaction.editReply({
             content: `✅ Ton ticket a été créé : ${ticketChannel}`,
-            ephemeral: true,
           });
           return;
         }
@@ -240,8 +243,10 @@ module.exports = {
           const parts = id.split("_");
           const proposerId = parts[2];
           const accepted = id.startsWith("mission_accept_");
-          const proposerMember = await interaction.guild.members.fetch(proposerId).catch(() => null);
 
+          // On répond TOUT DE SUITE (aucun appel réseau avant) : la
+          // récupération du membre (pour le MP) et le log suivent après,
+          // pour ne jamais risquer un "Unknown interaction" (10062).
           const original = interaction.message.embeds[0];
           const updatedEmbed = baseEmbed()
             .setTitle(original.title)
@@ -252,6 +257,7 @@ module.exports = {
 
           await interaction.update({ embeds: [updatedEmbed], components: [] });
 
+          const proposerMember = await interaction.guild.members.fetch(proposerId).catch(() => null);
           if (proposerMember) {
             proposerMember
               .send({
@@ -288,6 +294,11 @@ module.exports = {
       }
 
       if (interaction.isModalSubmit() && interaction.customId === "mission_modal") {
+        // L'envoi du message au salon missions (appel Discord) précède la
+        // réponse : on défère tout de suite pour éviter un "Unknown
+        // interaction" (10062).
+        await interaction.deferReply({ ephemeral: true });
+
         const nom = interaction.fields.getTextInputValue("mission_nom");
         const moyens = interaction.fields.getTextInputValue("mission_moyens");
         const victimes = interaction.fields.getTextInputValue("mission_victimes");
@@ -295,9 +306,8 @@ module.exports = {
 
         const channel = findChannel(interaction.guild, config.channels.missionsPropositions);
         if (!channel) {
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [errorEmbed("Configuration manquante", `Le salon **${config.channels.missionsPropositions}** est introuvable.`)],
-            ephemeral: true,
           });
         }
 
@@ -325,14 +335,26 @@ module.exports = {
         );
 
         await channel.send({ embeds: [embed], components: [row] });
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [successEmbed("Proposition envoyée", "Ta proposition de mission a bien été transmise au COMMANDEMENT. Tu recevras une réponse par message privé.")],
-          ephemeral: true,
         });
         return;
       }
     } catch (err) {
       console.error("[interactionCreate] Erreur inattendue :", err);
+      // Filet de sécurité : si un select menu / bouton / modal plante après
+      // avoir été défére/répondu, on informe quand même l'utilisateur au
+      // lieu de le laisser sur "L'application n'a pas répondu".
+      const payload = { embeds: [errorEmbed("Erreur", "Une erreur est survenue.")], ephemeral: true };
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(payload);
+        } else if (interaction.isRepliable && interaction.isRepliable()) {
+          await interaction.reply(payload);
+        }
+      } catch (_) {
+        // Interaction probablement déjà expirée : rien de plus à faire.
+      }
     }
   },
 };

@@ -71,6 +71,10 @@ module.exports = {
       });
     }
 
+    // La création/suppression de salon est un appel Discord à part entière
+    // qui peut prendre plus de temps que la fenêtre de 3s : on défère avant.
+    await interaction.deferReply();
+
     const sub = interaction.options.getSubcommand();
 
     if (sub === "creer") {
@@ -83,9 +87,8 @@ module.exports = {
       if (categorieNom) {
         parent = findChannel(interaction.guild, categorieNom);
         if (!parent || parent.type !== ChannelType.GuildCategory) {
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [errorEmbed("Catégorie introuvable", `Aucune catégorie nommée **${categorieNom}**.`)],
-            ephemeral: true,
           });
         }
       }
@@ -114,7 +117,7 @@ module.exports = {
         permissionOverwrites: overwrites.length ? overwrites : undefined,
       });
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [successEmbed("Salon créé", `${channel} a été créé avec succès.`)],
       });
       await log(
@@ -129,7 +132,7 @@ module.exports = {
       const channel = interaction.options.getChannel("salon");
       const name = channel.name;
       await channel.delete(`Supprimé par ${interaction.user.tag}`);
-      await interaction.reply({ embeds: [successEmbed("Salon supprimé", `Le salon **${name}** a été supprimé.`)] });
+      await interaction.editReply({ embeds: [successEmbed("Salon supprimé", `Le salon **${name}** a été supprimé.`)] });
       await log(
         interaction.guild,
         "server",

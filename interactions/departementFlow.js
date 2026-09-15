@@ -1,6 +1,12 @@
 // ============================================================================
 // interactions/departementFlow.js — sélection d'un centre à gérer (bascule
 // recrutement ouvert/fermé, actif/inactif) depuis /departement centre-gerer.
+//
+// Comme pour commands/membre.js, on défère IMMÉDIATEMENT (avant le moindre
+// appel Supabase) pour ne jamais dépasser la fenêtre de 3s de Discord et
+// provoquer un "Unknown interaction" (10062). Les menus/select utilisent
+// deferReply (nouvelle réponse éphémère), les boutons utilisent deferUpdate
+// (on édite le message existant) ; dans les deux cas on finit par editReply().
 // ============================================================================
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
@@ -17,8 +23,7 @@ function denyIfNotRecruiter(interaction) {
   return false;
 }
 
-async function renderCenterCard(interaction, centerId, isUpdate) {
-  const center = await getCenter(centerId);
+function buildCenterCard(center) {
   const embed = baseEmbed()
     .setTitle(center.name)
     .setDescription(
@@ -42,28 +47,36 @@ async function renderCenterCard(interaction, centerId, isUpdate) {
       .setStyle(ButtonStyle.Secondary)
   );
 
-  const payload = { embeds: [embed], components: [row] };
-  if (isUpdate) await interaction.update(payload);
-  else await interaction.reply({ ...payload, ephemeral: true });
+  return { embeds: [embed], components: [row] };
 }
 
 async function handleCenterManageSelect(interaction) {
   if (denyIfNotRecruiter(interaction)) return;
-  await renderCenterCard(interaction, interaction.values[0], false);
+  await interaction.deferReply({ ephemeral: true });
+
+  const centerId = interaction.values[0];
+  const center = await getCenter(centerId);
+  await interaction.editReply(buildCenterCard(center));
 }
 
 async function handleToggleRecruitment(interaction, centerId, open) {
   if (denyIfNotRecruiter(interaction)) return;
+  await interaction.deferUpdate();
+
   await setCenterRecruitment(centerId, open);
-  await logToDiscord(interaction.guild, open ? "🟢 Recrutement ouvert" : "🔴 Recrutement fermé", { Centre: (await getCenter(centerId)).name, Par: interaction.user.tag });
-  await renderCenterCard(interaction, centerId, true);
+  const center = await getCenter(centerId);
+  await logToDiscord(interaction.guild, open ? "🟢 Recrutement ouvert" : "🔴 Recrutement fermé", { Centre: center.name, Par: interaction.user.tag });
+  await interaction.editReply(buildCenterCard(center));
 }
 
 async function handleToggleActive(interaction, centerId, active) {
   if (denyIfNotRecruiter(interaction)) return;
+  await interaction.deferUpdate();
+
   await setCenterActive(centerId, active);
-  await logToDiscord(interaction.guild, active ? "✅ Centre activé" : "🚫 Centre désactivé", { Centre: (await getCenter(centerId)).name, Par: interaction.user.tag });
-  await renderCenterCard(interaction, centerId, true);
+  const center = await getCenter(centerId);
+  await logToDiscord(interaction.guild, active ? "✅ Centre activé" : "🚫 Centre désactivé", { Centre: center.name, Par: interaction.user.tag });
+  await interaction.editReply(buildCenterCard(center));
 }
 
 module.exports = { handleCenterManageSelect, handleToggleRecruitment, handleToggleActive };

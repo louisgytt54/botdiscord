@@ -79,6 +79,10 @@ module.exports = {
     const denial = checkStaff(interaction);
     if (denial) return interaction.reply({ embeds: [denial], ephemeral: true });
 
+    // Les actions de modération (ban/kick/mute/fetch membre) sont des appels
+    // Discord qui peuvent dépasser la fenêtre de 3s : on défère avant.
+    await interaction.deferReply();
+
     const sub = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser("membre");
     const reason = interaction.options.getString("raison") || "Aucune raison fournie";
@@ -87,13 +91,12 @@ module.exports = {
     // ---------------- BAN ----------------
     if (sub === "ban") {
       if (targetMember && !targetMember.bannable) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [errorEmbed("Impossible", "Je ne peux pas bannir ce membre (rôle trop élevé).")],
-          ephemeral: true,
         });
       }
       await interaction.guild.members.ban(targetUser.id, { reason });
-      await interaction.reply({ embeds: [successEmbed("Membre banni", `${targetUser} a été banni.`)] });
+      await interaction.editReply({ embeds: [successEmbed("Membre banni", `${targetUser} a été banni.`)] });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Ban", target: targetUser, moderator: interaction.user, reason }));
       return;
     }
@@ -101,13 +104,13 @@ module.exports = {
     // ---------------- KICK ----------------
     if (sub === "kick") {
       if (!targetMember) {
-        return interaction.reply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")] });
       }
       if (!targetMember.kickable) {
-        return interaction.reply({ embeds: [errorEmbed("Impossible", "Je ne peux pas expulser ce membre (rôle trop élevé).")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Impossible", "Je ne peux pas expulser ce membre (rôle trop élevé).")] });
       }
       await targetMember.kick(reason);
-      await interaction.reply({ embeds: [successEmbed("Membre expulsé", `${targetUser} a été expulsé.`)] });
+      await interaction.editReply({ embeds: [successEmbed("Membre expulsé", `${targetUser} a été expulsé.`)] });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Kick", target: targetUser, moderator: interaction.user, reason }));
       return;
     }
@@ -116,19 +119,18 @@ module.exports = {
     if (sub === "mute") {
       const minutes = interaction.options.getInteger("minutes");
       if (!targetMember) {
-        return interaction.reply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")] });
       }
       if (minutes < 1 || minutes > config.settings.maxMuteMinutes) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [errorEmbed("Durée invalide", `Choisis une durée entre 1 et ${config.settings.maxMuteMinutes} minutes.`)],
-          ephemeral: true,
         });
       }
       if (!targetMember.moderatable) {
-        return interaction.reply({ embeds: [errorEmbed("Impossible", "Je ne peux pas mute ce membre (rôle trop élevé).")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Impossible", "Je ne peux pas mute ce membre (rôle trop élevé).")] });
       }
       await targetMember.timeout(minutes * 60 * 1000, reason);
-      await interaction.reply({ embeds: [successEmbed("Membre mute", `${targetUser} est en sourdine pour ${minutes} minute(s).`)] });
+      await interaction.editReply({ embeds: [successEmbed("Membre mute", `${targetUser} est en sourdine pour ${minutes} minute(s).`)] });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Mute", target: targetUser, moderator: interaction.user, reason, extra: `${minutes} minute(s)` }));
       return;
     }
@@ -136,10 +138,10 @@ module.exports = {
     // ---------------- UNMUTE ----------------
     if (sub === "unmute") {
       if (!targetMember) {
-        return interaction.reply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")], ephemeral: true });
+        return interaction.editReply({ embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")] });
       }
       await targetMember.timeout(null);
-      await interaction.reply({ embeds: [successEmbed("Sourdine retirée", `${targetUser} peut de nouveau parler.`)] });
+      await interaction.editReply({ embeds: [successEmbed("Sourdine retirée", `${targetUser} peut de nouveau parler.`)] });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Unmute", target: targetUser, moderator: interaction.user, reason: "—" }));
       return;
     }
@@ -151,7 +153,7 @@ module.exports = {
         moderator: interaction.user.tag,
         date: new Date().toISOString(),
       });
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [successEmbed("Membre averti", `${targetUser} a reçu un avertissement (total : ${warnings.length}).`)],
       });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Warn", target: targetUser, moderator: interaction.user, reason, extra: `Total avertissements : ${warnings.length}` }));
@@ -171,24 +173,22 @@ module.exports = {
     if (sub === "warnings") {
       const warnings = getWarnings(targetUser.id);
       if (warnings.length === 0) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [baseEmbed().setTitle(`Avertissements de ${targetUser.tag}`).setDescription("Aucun avertissement.")],
-          ephemeral: true,
         });
       }
       const list = warnings
         .map((w, i) => `**${i + 1}.** ${w.reason} — *par ${w.moderator}* (<t:${Math.floor(new Date(w.date).getTime() / 1000)}:R>)`)
         .join("\n");
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [baseEmbed().setTitle(`Avertissements de ${targetUser.tag} (${warnings.length})`).setDescription(list)],
-        ephemeral: true,
       });
     }
 
     // ---------------- CLEARWARNINGS ----------------
     if (sub === "clearwarnings") {
       clearWarnings(targetUser.id);
-      await interaction.reply({ embeds: [successEmbed("Avertissements effacés", `Tous les avertissements de ${targetUser} ont été supprimés.`)] });
+      await interaction.editReply({ embeds: [successEmbed("Avertissements effacés", `Tous les avertissements de ${targetUser} ont été supprimés.`)] });
       await log(interaction.guild, "mod", modLogEmbed({ action: "Clear Warnings", target: targetUser, moderator: interaction.user, reason: "—" }));
     }
   },

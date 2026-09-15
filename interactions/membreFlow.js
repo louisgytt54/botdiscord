@@ -50,12 +50,16 @@ function denyIfNotRecruiter(interaction) {
 // ---------------------------------------------------------------------
 async function handleAssignServiceSelect(interaction, targetId) {
   if (denyIfNotRecruiter(interaction)) return;
+  // Voir commands/membre.js : on défère avant tout appel Supabase. Ici la
+  // réponse édite le message existant (menu précédent) -> deferUpdate().
+  await interaction.deferUpdate();
+
   const serviceSlug = interaction.values[0];
   const service = await getServiceRow(serviceSlug);
   const allDepartments = (await listAllDepartments()).filter((d) => d.active);
 
   if (allDepartments.length === 0) {
-    return interaction.update({ embeds: [errorEmbed("Aucun département", "Aucun département actif n'est configuré.")], components: [] });
+    return interaction.editReply({ embeds: [errorEmbed("Aucun département", "Aucun département actif n'est configuré.")], components: [] });
   }
 
   const select = new StringSelectMenuBuilder()
@@ -63,7 +67,7 @@ async function handleAssignServiceSelect(interaction, targetId) {
     .setPlaceholder("Choisissez un département...")
     .addOptions(allDepartments.map((d) => ({ label: `${d.code} — ${d.name}`, value: d.id })));
 
-  await interaction.update({
+  await interaction.editReply({
     embeds: [baseEmbed().setTitle(`${service.emoji} ${service.label}`).setDescription("📍 Choisissez le département de l'affectation.")],
     components: [new ActionRowBuilder().addComponents(select)],
   });
@@ -71,13 +75,15 @@ async function handleAssignServiceSelect(interaction, targetId) {
 
 async function handleAssignDepartmentSelect(interaction, targetId, serviceSlug) {
   if (denyIfNotRecruiter(interaction)) return;
+  await interaction.deferUpdate();
+
   const departmentId = interaction.values[0];
   const service = await getServiceRow(serviceSlug);
   const department = await getDepartment(departmentId);
   const centers = await listActiveCentersForServiceDepartment(serviceSlug, departmentId);
 
   if (centers.length === 0) {
-    return interaction.update({ embeds: [errorEmbed("Aucun centre", `Aucun centre actif pour **${service.label}** dans ce département. Crée-en un avec /departement centre-ajouter.`)], components: [] });
+    return interaction.editReply({ embeds: [errorEmbed("Aucun centre", `Aucun centre actif pour **${service.label}** dans ce département. Crée-en un avec /departement centre-ajouter.`)], components: [] });
   }
 
   const select = new StringSelectMenuBuilder()
@@ -85,7 +91,7 @@ async function handleAssignDepartmentSelect(interaction, targetId, serviceSlug) 
     .setPlaceholder("Choisissez un centre...")
     .addOptions(centers.map((c) => ({ label: c.name, value: c.id, description: c.organization_name || undefined })));
 
-  await interaction.update({
+  await interaction.editReply({
     embeds: [baseEmbed().setTitle(`${service.emoji} ${service.label}`).setDescription(`📍 Département : **${department.code} — ${department.name}**\n\nChoisissez le centre.`)],
     components: [new ActionRowBuilder().addComponents(select)],
   });
@@ -93,6 +99,8 @@ async function handleAssignDepartmentSelect(interaction, targetId, serviceSlug) 
 
 async function handleAssignCenterSelect(interaction, targetId, serviceSlug, departmentId) {
   if (denyIfNotRecruiter(interaction)) return;
+  await interaction.deferUpdate();
+
   const centerId = interaction.values[0];
   const center = await getCenter(centerId);
   const department = await getDepartment(departmentId);
@@ -102,7 +110,7 @@ async function handleAssignCenterSelect(interaction, targetId, serviceSlug, depa
     new ButtonBuilder().setCustomId(`maconf:${targetId}:${centerId}`).setLabel("Confirmer l'affectation").setStyle(ButtonStyle.Success)
   );
 
-  await interaction.update({
+  await interaction.editReply({
     embeds: [
       baseEmbed()
         .setTitle("Confirmer l'affectation ?")
@@ -114,10 +122,12 @@ async function handleAssignCenterSelect(interaction, targetId, serviceSlug, depa
 
 async function handleAssignConfirm(interaction, targetId, centerId) {
   if (denyIfNotRecruiter(interaction)) return;
+  // Enchaîne affectation + rôles Discord + audit : on défère tout de suite.
+  await interaction.deferUpdate();
 
   const profile = await getProfileByDiscordId(targetId);
   if (!profile) {
-    return interaction.update({ embeds: [errorEmbed("Compte jeu introuvable", "Ce membre ne s'est jamais connecté au jeu avec Discord — impossible de l'affecter.")], components: [] });
+    return interaction.editReply({ embeds: [errorEmbed("Compte jeu introuvable", "Ce membre ne s'est jamais connecté au jeu avec Discord — impossible de l'affecter.")], components: [] });
   }
 
   const center = await getCenter(centerId);
@@ -151,7 +161,7 @@ async function handleAssignConfirm(interaction, targetId, centerId) {
     "Par": interaction.user.tag,
   });
 
-  await interaction.update({ embeds: [successEmbed("Affectation créée", `<@${targetId}> est maintenant affecté à **${center.name}**.`)], components: [] });
+  await interaction.editReply({ embeds: [successEmbed("Affectation créée", `<@${targetId}> est maintenant affecté à **${center.name}**.`)], components: [] });
 }
 
 // ---------------------------------------------------------------------
@@ -168,10 +178,14 @@ async function handleSuspendSelect(interaction, targetId) {
 }
 
 async function handleSuspendModalSubmit(interaction, assignmentId) {
+  // Voir commands/membre.js : plusieurs appels Supabase/Discord suivent
+  // avant la réponse, on défère tout de suite.
+  await interaction.deferReply({ ephemeral: true });
+
   const reason = interaction.fields.getTextInputValue("reason");
   const assignment = await getAssignment(assignmentId);
   if (!assignment || assignment.status !== "active") {
-    return interaction.reply({ embeds: [errorEmbed("Indisponible", "Cette affectation n'est plus active.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Indisponible", "Cette affectation n'est plus active.")] });
   }
 
   const updated = await suspendAssignment(assignmentId, interaction.user.id, reason);
@@ -195,7 +209,7 @@ async function handleSuspendModalSubmit(interaction, assignmentId) {
   });
   await logToDiscord(interaction.guild, "⏸️ Affectation suspendue", { Centre: center ? center.name : "?", Motif: reason, Par: interaction.user.tag });
 
-  await interaction.reply({ embeds: [successEmbed("Affectation suspendue", "L'accès à ce centre est désormais suspendu.")], ephemeral: true });
+  await interaction.editReply({ embeds: [successEmbed("Affectation suspendue", "L'accès à ce centre est désormais suspendu.")] });
 }
 
 // ---------------------------------------------------------------------
@@ -212,9 +226,12 @@ async function handleReactivateSelect(interaction, targetId) {
 
 async function handleReactivateConfirm(interaction, assignmentId) {
   if (denyIfNotRecruiter(interaction)) return;
+  // Voir commands/membre.js : plusieurs appels Supabase/Discord suivent.
+  await interaction.deferUpdate();
+
   const before = await getAssignment(assignmentId);
   if (!before || before.status !== "suspended") {
-    return interaction.update({ embeds: [errorEmbed("Indisponible", "Cette affectation n'est pas suspendue.")], components: [] });
+    return interaction.editReply({ embeds: [errorEmbed("Indisponible", "Cette affectation n'est pas suspendue.")], components: [] });
   }
 
   const updated = await reactivateAssignment(assignmentId, interaction.user.id);
@@ -227,7 +244,7 @@ async function handleReactivateConfirm(interaction, assignmentId) {
   await recordAudit({ assignmentId, userId: updated.user_id, serviceId: updated.service_id, action: "assignment_reactivated", actorDiscordId: interaction.user.id });
   await logToDiscord(interaction.guild, "▶️ Affectation réactivée", { Centre: center ? center.name : "?", Par: interaction.user.tag });
 
-  await interaction.update({ embeds: [successEmbed("Affectation réactivée", "L'accès à ce centre est de nouveau actif.")], components: [] });
+  await interaction.editReply({ embeds: [successEmbed("Affectation réactivée", "L'accès à ce centre est de nouveau actif.")], components: [] });
 }
 
 // ---------------------------------------------------------------------
@@ -243,10 +260,13 @@ async function handleRevokeSelect(interaction, targetId) {
 }
 
 async function handleRevokeModalSubmit(interaction, assignmentId) {
+  // Voir commands/membre.js : plusieurs appels Supabase/Discord suivent.
+  await interaction.deferReply({ ephemeral: true });
+
   const reason = interaction.fields.getTextInputValue("reason");
   const before = await getAssignment(assignmentId);
   if (!before || before.status === "revoked") {
-    return interaction.reply({ embeds: [errorEmbed("Indisponible", "Cette affectation est déjà retirée.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Indisponible", "Cette affectation est déjà retirée.")] });
   }
 
   const updated = await revokeAssignment(assignmentId, interaction.user.id, reason);
@@ -261,7 +281,7 @@ async function handleRevokeModalSubmit(interaction, assignmentId) {
   await recordAudit({ assignmentId, userId: updated.user_id, serviceId: updated.service_id, action: "assignment_revoked", actorDiscordId: interaction.user.id, details: { reason } });
   await logToDiscord(interaction.guild, "🗑️ Affectation retirée", { Centre: center ? center.name : "?", Motif: reason, Par: interaction.user.tag });
 
-  await interaction.reply({ embeds: [successEmbed("Affectation retirée", "L'accès à ce centre a été retiré.")], ephemeral: true });
+  await interaction.editReply({ embeds: [successEmbed("Affectation retirée", "L'accès à ce centre a été retiré.")] });
 }
 
 // ---------------------------------------------------------------------
@@ -271,7 +291,11 @@ async function handleRevokeModalSubmit(interaction, assignmentId) {
 async function profileDiscordId(profileId) {
   const { getSupabase } = require("../services/supabase/client");
   const supabase = getSupabase();
-  const { data } = await supabase.from("profiles").select("discord_id").eq("id", profileId).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("discord_id").eq("id", profileId).maybeSingle();
+  if (error) {
+    console.error("[membreFlow] Erreur profileDiscordId :", error.message);
+    return null;
+  }
   return data ? data.discord_id : null;
 }
 

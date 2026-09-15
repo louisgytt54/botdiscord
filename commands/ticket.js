@@ -39,6 +39,10 @@ module.exports = {
       });
     }
 
+    // interaction.channel.send() est un appel Discord qui peut dépasser la
+    // fenêtre de 3s.
+    await interaction.deferReply({ ephemeral: true });
+
     const embed = baseEmbed()
       .setTitle("🎫 Support — PC Secours")
       .setDescription(
@@ -54,6 +58,6 @@ module.exports = {
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: "✅ Panneau de tickets posté.", ephemeral: true });
+    await interaction.editReply({ content: "✅ Panneau de tickets posté." });
   },
 };

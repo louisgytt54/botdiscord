@@ -22,13 +22,14 @@ class ApplicationError extends Error {
 async function assertNoDuplicate(profileId, centerId) {
   const supabase = getSupabase();
 
-  const { data: pending } = await supabase
+  const { data: pending, error: pendingError } = await supabase
     .from("service_applications")
     .select("id")
     .eq("user_id", profileId)
     .eq("operations_center_id", centerId)
     .eq("status", "pending")
     .maybeSingle();
+  if (pendingError) throw new ApplicationError("DB_ERROR", pendingError.message);
   if (pending) {
     throw new ApplicationError(
       "DUPLICATE_PENDING",
@@ -36,13 +37,14 @@ async function assertNoDuplicate(profileId, centerId) {
     );
   }
 
-  const { data: active } = await supabase
+  const { data: active, error: activeError } = await supabase
     .from("user_service_assignments")
     .select("id")
     .eq("user_id", profileId)
     .eq("operations_center_id", centerId)
     .eq("status", "active")
     .maybeSingle();
+  if (activeError) throw new ApplicationError("DB_ERROR", activeError.message);
   if (active) {
     throw new ApplicationError(
       "ALREADY_ASSIGNED",
@@ -90,11 +92,15 @@ async function createApplication(params) {
 
 async function getApplication(applicationId) {
   const supabase = getSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("service_applications")
     .select("*")
     .eq("id", applicationId)
     .maybeSingle();
+  if (error) {
+    console.error("[applications] Erreur getApplication :", error.message);
+    throw new ApplicationError("DB_ERROR", error.message);
+  }
   return data;
 }
 

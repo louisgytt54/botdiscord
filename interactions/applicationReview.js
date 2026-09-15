@@ -58,22 +58,25 @@ function markReviewedEmbed(originalEmbed, statusText, color, byUser) {
 async function handleAcceptButton(interaction, applicationId) {
   if (denyIfNotRecruiter(interaction)) return;
 
+  // loadContext() fait plusieurs allers-retours Supabase : on défère avant
+  // pour ne pas risquer un "Unknown interaction" (10062). Voir commands/membre.js.
+  await interaction.deferReply({ ephemeral: true });
+
   const ctx = await loadContext(applicationId);
   if (!ctx || !ctx.application) {
-    return interaction.reply({ embeds: [errorEmbed("Introuvable", "Cette candidature n'existe plus.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Introuvable", "Cette candidature n'existe plus.")] });
   }
   if (ctx.application.status !== "pending") {
-    return interaction.reply({ embeds: [errorEmbed("Déjà traitée", "Cette candidature a déjà été traitée par quelqu'un d'autre.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Déjà traitée", "Cette candidature a déjà été traitée par quelqu'un d'autre.")] });
   }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`appaccok:${applicationId}`).setLabel("Confirmer l'acceptation").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`appaccno:${applicationId}`).setLabel("Annuler").setStyle(ButtonStyle.Secondary)
   );
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [baseEmbed().setTitle("Confirmer l'acceptation ?").setDescription(`Candidat : <@${ctx.application.discord_user_id}>\nCentre : **${ctx.center ? ctx.center.name : "?"}**`)],
     components: [row],
-    ephemeral: true,
   });
 }
 
@@ -84,11 +87,17 @@ async function handleAcceptCancel(interaction) {
 async function handleAcceptConfirm(interaction, applicationId) {
   if (denyIfNotRecruiter(interaction)) return;
 
+  // Ce traitement enchaîne de nombreux appels Supabase/Discord (acceptation,
+  // affectation, rôles, audit, DM au candidat...) avant de répondre : on
+  // défère IMMÉDIATEMENT (voir commands/membre.js) pour ne jamais dépasser
+  // la fenêtre de 3s de Discord et provoquer un "Unknown interaction" (10062).
+  await interaction.deferUpdate();
+
   // Verrou anti double-validation (section 18) : l'update conditionnel
   // (WHERE status = 'pending') ne réussit qu'une seule fois.
   const updated = await acceptApplication(applicationId, interaction.user.id);
   if (!updated) {
-    return interaction.update({ embeds: [errorEmbed("Déjà traitée", "Cette candidature vient d'être traitée par quelqu'un d'autre.")], components: [] });
+    return interaction.editReply({ embeds: [errorEmbed("Déjà traitée", "Cette candidature vient d'être traitée par quelqu'un d'autre.")], components: [] });
   }
 
   const ctx = await loadContext(applicationId);
@@ -151,7 +160,7 @@ async function handleAcceptConfirm(interaction, applicationId) {
       .catch(() => {});
   }
 
-  await interaction.update({ embeds: [successEmbed("Candidature acceptée", "L'affectation a été créée et les rôles attribués.")], components: [] });
+  await interaction.editReply({ embeds: [successEmbed("Candidature acceptée", "L'affectation a été créée et les rôles attribués.")], components: [] });
 }
 
 // ---------------------------------------------------------------------
@@ -160,8 +169,14 @@ async function handleAcceptConfirm(interaction, applicationId) {
 async function handleRejectButton(interaction, applicationId) {
   if (denyIfNotRecruiter(interaction)) return;
 
-  const ctx = await loadContext(applicationId);
-  if (!ctx || !ctx.application || ctx.application.status !== "pending") {
+  // showModal() doit être la toute première réponse à l'interaction (il est
+  // impossible de deferReply() puis showModal()) : on limite donc au strict
+  // nécessaire l'appel avant modal — un seul getApplication(), plutôt que le
+  // loadContext() complet (qui va chercher aussi le centre/département/
+  // services dont on n'a pas besoin ici) — pour minimiser le risque de
+  // dépasser la fenêtre de 3s de Discord.
+  const application = await getApplication(applicationId);
+  if (!application || application.status !== "pending") {
     return interaction.reply({ embeds: [errorEmbed("Indisponible", "Cette candidature a déjà été traitée.")], ephemeral: true });
   }
 
@@ -177,11 +192,15 @@ async function handleRejectButton(interaction, applicationId) {
 }
 
 async function handleRejectModalSubmit(interaction, applicationId) {
+  // Plusieurs appels Supabase/Discord suivent avant la réponse : on défère
+  // tout de suite (voir commands/membre.js).
+  await interaction.deferReply({ ephemeral: true });
+
   const reason = interaction.fields.getTextInputValue("reason");
 
   const updated = await rejectApplication(applicationId, interaction.user.id, reason);
   if (!updated) {
-    return interaction.reply({ embeds: [errorEmbed("Déjà traitée", "Cette candidature vient d'être traitée par quelqu'un d'autre.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Déjà traitée", "Cette candidature vient d'être traitée par quelqu'un d'autre.")] });
   }
 
   const ctx = await loadContext(applicationId);
@@ -214,7 +233,7 @@ async function handleRejectModalSubmit(interaction, applicationId) {
       .catch(() => {});
   }
 
-  await interaction.reply({ embeds: [successEmbed("Candidature refusée", "Le candidat a été notifié.")], ephemeral: true });
+  await interaction.editReply({ embeds: [successEmbed("Candidature refusée", "Le candidat a été notifié.")] });
 }
 
 // ---------------------------------------------------------------------
@@ -235,10 +254,13 @@ async function handleInfoButton(interaction, applicationId) {
 }
 
 async function handleInfoModalSubmit(interaction, applicationId) {
+  // Voir commands/membre.js : on défère avant le premier appel Supabase.
+  await interaction.deferReply({ ephemeral: true });
+
   const message = interaction.fields.getTextInputValue("message");
   const ctx = await loadContext(applicationId);
   if (!ctx || !ctx.application) {
-    return interaction.reply({ embeds: [errorEmbed("Introuvable", "Cette candidature n'existe plus.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Introuvable", "Cette candidature n'existe plus.")] });
   }
 
   await recordAudit({
@@ -256,7 +278,7 @@ async function handleInfoModalSubmit(interaction, applicationId) {
       .catch(() => {});
   }
 
-  await interaction.reply({ embeds: [successEmbed("Message envoyé", "Le candidat a reçu ta demande d'informations par message privé.")], ephemeral: true });
+  await interaction.editReply({ embeds: [successEmbed("Message envoyé", "Le candidat a reçu ta demande d'informations par message privé.")] });
 }
 
 module.exports = {

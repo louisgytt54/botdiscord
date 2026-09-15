@@ -39,28 +39,32 @@ const NO_PROFILE_MESSAGE =
 // Étape 1 : choix du service
 // ---------------------------------------------------------------------
 async function handleServiceSelect(interaction) {
+  // On défère tout de suite (voir commands/membre.js) : plusieurs appels
+  // Supabase suivent avant la première réponse, ce qui peut dépasser la
+  // fenêtre de 3s de Discord et provoquer un "Unknown interaction" (10062).
+  await interaction.deferReply({ ephemeral: true });
+
   const serviceSlug = interaction.values[0];
 
   const profile = await getProfileByDiscordId(interaction.user.id);
   if (!profile) {
-    return interaction.reply({ embeds: [errorEmbed("Compte jeu introuvable", NO_PROFILE_MESSAGE)], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Compte jeu introuvable", NO_PROFILE_MESSAGE)] });
   }
 
   const service = await getServiceRow(serviceSlug);
   if (!service) {
-    return interaction.reply({ embeds: [errorEmbed("Service introuvable", "Ce service n'existe plus.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Service introuvable", "Ce service n'existe plus.")] });
   }
 
   const departments = await listOpenDepartmentsForService(serviceSlug);
   if (departments.length === 0) {
-    return interaction.reply({
+    return interaction.editReply({
       embeds: [
         errorEmbed(
           "Aucun recrutement ouvert",
           `Aucun département n'a de recrutement ouvert pour **${service.label}** actuellement. Réessaie plus tard.`
         ),
       ],
-      ephemeral: true,
     });
   }
 
@@ -73,20 +77,24 @@ async function handleServiceSelect(interaction) {
     .setPlaceholder("Choisissez un département...")
     .addOptions(departments.map((d) => ({ label: `${d.code} — ${d.name}`, value: d.id })));
 
-  await interaction.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)], ephemeral: true });
+  await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
 }
 
 // ---------------------------------------------------------------------
 // Étape 2 : choix du département -> centre (ou confirmation directe si un seul centre)
 // ---------------------------------------------------------------------
 async function handleDepartmentSelect(interaction, serviceSlug) {
+  // Voir handleServiceSelect : on défère avant tout appel Supabase. Ici la
+  // réponse édite le message existant (menu précédent), donc deferUpdate().
+  await interaction.deferUpdate();
+
   const departmentId = interaction.values[0];
   const service = await getServiceRow(serviceSlug);
   const department = await getDepartment(departmentId);
   const centers = await listOpenCentersForServiceDepartment(serviceSlug, departmentId);
 
   if (centers.length === 0) {
-    return interaction.update({
+    return interaction.editReply({
       embeds: [errorEmbed("Aucun centre disponible", "Le recrutement vient de se fermer pour ce département. Réessaie plus tard.")],
       components: [],
     });
@@ -111,21 +119,26 @@ async function handleDepartmentSelect(interaction, serviceSlug) {
       }))
     );
 
-  await interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
+  await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
 }
 
 // ---------------------------------------------------------------------
 // Étape 3 : choix du centre (quand il y en a plusieurs) -> confirmation
 // ---------------------------------------------------------------------
 async function handleCenterSelect(interaction, serviceSlug, departmentId) {
+  // Voir handleServiceSelect / handleDepartmentSelect.
+  await interaction.deferUpdate();
+
   const centerId = interaction.values[0];
   const service = await getServiceRow(serviceSlug);
   const department = await getDepartment(departmentId);
   const center = await getCenter(centerId);
-  await showConfirmation(interaction, service, department, center, true);
+  await showConfirmation(interaction, service, department, center);
 }
 
-async function showConfirmation(interaction, service, department, center, isUpdate) {
+// Les deux appelants ci-dessus ont déjà déferré (deferUpdate) avant d'arriver
+// ici : on répond donc toujours via editReply(), jamais reply()/update().
+async function showConfirmation(interaction, service, department, center) {
   const embed = baseEmbed()
     .setColor(service.color || config.branding.color)
     .setTitle(`${service.emoji} ${service.label.toUpperCase()}`)
@@ -149,9 +162,7 @@ async function showConfirmation(interaction, service, department, center, isUpda
     new ButtonBuilder().setCustomId("ccancel").setLabel("Annuler").setStyle(ButtonStyle.Secondary)
   );
 
-  const payload = { embeds: [embed], components: [row] };
-  if (isUpdate) await interaction.update(payload);
-  else await interaction.reply({ ...payload, ephemeral: true });
+  await interaction.editReply({ embeds: [embed], components: [row] });
 }
 
 async function handleCancel(interaction) {
@@ -191,14 +202,20 @@ function buildApplicationModal(centerId) {
 // Étape 5 : soumission du formulaire -> enregistrement Supabase + fiche staff
 // ---------------------------------------------------------------------
 async function handleModalSubmit(interaction, centerId) {
+  // Le formulaire déclenche ensuite beaucoup d'allers-retours Supabase
+  // (profil, centre, département, services, création candidature, audit,
+  // fiche staff) avant la moindre réponse : on défère IMMÉDIATEMENT pour
+  // éviter un "Unknown interaction" (10062). Voir commands/membre.js.
+  await interaction.deferReply({ ephemeral: true });
+
   const profile = await getProfileByDiscordId(interaction.user.id);
   if (!profile) {
-    return interaction.reply({ embeds: [errorEmbed("Compte jeu introuvable", NO_PROFILE_MESSAGE)], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Compte jeu introuvable", NO_PROFILE_MESSAGE)] });
   }
 
   const center = await getCenter(centerId);
   if (!center) {
-    return interaction.reply({ embeds: [errorEmbed("Centre introuvable", "Ce centre opérationnel n'existe plus.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Centre introuvable", "Ce centre opérationnel n'existe plus.")] });
   }
   const department = await getDepartment(center.department_id);
   const services = require("../services/supabase/catalog");
@@ -225,10 +242,10 @@ async function handleModalSubmit(interaction, centerId) {
     });
   } catch (err) {
     if (err instanceof ApplicationError) {
-      return interaction.reply({ embeds: [errorEmbed("Candidature impossible", err.message)], ephemeral: true });
+      return interaction.editReply({ embeds: [errorEmbed("Candidature impossible", err.message)] });
     }
     console.error("[candidatureFlow] Erreur création candidature :", err);
-    return interaction.reply({ embeds: [errorEmbed("Erreur", "Une erreur est survenue lors de l'enregistrement de ta candidature.")], ephemeral: true });
+    return interaction.editReply({ embeds: [errorEmbed("Erreur", "Une erreur est survenue lors de l'enregistrement de ta candidature.")] });
   }
 
   await recordAudit({
@@ -241,14 +258,13 @@ async function handleModalSubmit(interaction, centerId) {
 
   await postStaffReview(interaction, { application, service, department, center, answers, questions });
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [
       successEmbed(
         "Candidature envoyée",
         `Ta candidature pour **${service ? service.label : "ce service"} — ${center.name}** a bien été transmise. Référence : \`${application.reference_code}\`. Tu recevras une réponse par message privé.`
       ),
     ],
-    ephemeral: true,
   });
 }
 

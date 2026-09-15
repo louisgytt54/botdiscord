@@ -82,6 +82,10 @@ module.exports = {
       });
     }
 
+    // Récupérer le membre + ajouter/retirer un rôle sont des appels Discord
+    // qui peuvent dépasser la fenêtre de 3s : on défère avant.
+    await interaction.deferReply();
+
     const sub = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser("membre");
     const targetMember = await interaction.guild.members
@@ -89,27 +93,25 @@ module.exports = {
       .catch(() => null);
 
     if (!targetMember) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [errorEmbed("Introuvable", "Ce membre n'est plus sur le serveur.")],
-        ephemeral: true,
       });
     }
 
     if (sub === "commandement") {
       const role = findRole(interaction.guild, config.roles.commandement);
       if (!role) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [
             errorEmbed(
               "Rôle introuvable",
               `Le rôle **${config.roles.commandement}** n'existe pas sur ce serveur.`
             ),
           ],
-          ephemeral: true,
         });
       }
       await targetMember.roles.add(role);
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           successEmbed(
             "Promotion effectuée",
@@ -133,18 +135,17 @@ module.exports = {
       const service = interaction.options.getString("service");
       const role = findRole(interaction.guild, service);
       if (!role) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [
             errorEmbed(
               "Rôle introuvable",
               `Le rôle **${service}** n'existe pas sur ce serveur. Vérifie qu'il n'a pas été supprimé.`
             ),
           ],
-          ephemeral: true,
         });
       }
       await targetMember.roles.add(role);
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           successEmbed(
             "Service attribué",
@@ -168,18 +169,17 @@ module.exports = {
       const roleName = interaction.options.getString("role");
       const role = findRole(interaction.guild, roleName);
       if (!role || !targetMember.roles.cache.has(role.id)) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [
             errorEmbed(
               "Rien à retirer",
               `${targetMember} n'a pas le rôle **${roleName}**.`
             ),
           ],
-          ephemeral: true,
         });
       }
       await targetMember.roles.remove(role);
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           successEmbed(
             "Rôle retiré",

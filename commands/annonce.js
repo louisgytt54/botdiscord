@@ -70,6 +70,9 @@ module.exports = {
       });
     }
 
+    // salon.send() est un appel Discord qui peut dépasser la fenêtre de 3s.
+    await interaction.deferReply({ ephemeral: true });
+
     const titre = interaction.options.getString("titre");
     const message = interaction.options.getString("message").replace(/\\n/g, "\n");
     const salon = interaction.options.getChannel("salon") || interaction.channel;
@@ -91,16 +94,14 @@ module.exports = {
     });
 
     if (!salon.isTextBased()) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [errorEmbed("Salon invalide", "Choisis un salon textuel.")],
-        ephemeral: true,
       });
     }
 
     await salon.send({ embeds: [embed] });
-    await interaction.reply({
+    await interaction.editReply({
       content: `✅ Annonce publiée dans ${salon}.`,
-      ephemeral: true,
     });
   },
 };
