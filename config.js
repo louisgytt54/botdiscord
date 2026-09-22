@@ -50,7 +50,10 @@ module.exports = {
     // est automatiquement supprimé et republié par le bot sous forme d'embed.
     annonceRelay: "annonces",
 
-    // Catégorie sous laquelle les tickets seront créés
+    // Catégorie sous laquelle les tickets seront créés — utilisée à la fois
+    // pour les tickets ouverts depuis Discord (/ticket panneau) ET pour les
+    // tickets ouverts depuis le jeu (pont support 0055, voir
+    // services/supabase/support.js) : un seul système de tickets unifié.
     ticketCategory: "TICKETS",
 
     // Salon où le panneau "Ouvrir un ticket" est posté

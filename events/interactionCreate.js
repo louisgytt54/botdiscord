@@ -22,6 +22,8 @@ const candidatureFlow = require("../interactions/candidatureFlow");
 const applicationReview = require("../interactions/applicationReview");
 const membreFlow = require("../interactions/membreFlow");
 const departementFlow = require("../interactions/departementFlow");
+const { getProfileByDiscordId } = require("../services/supabase/profiles");
+const { createTicketFromDiscordUser, waitForTicketChannel } = require("../services/supabase/support");
 
 module.exports = {
   name: "interactionCreate",
@@ -56,26 +58,31 @@ module.exports = {
       if (interaction.isStringSelectMenu()) {
         const id = interaction.customId;
 
-        if (id === "candidature_select_service") return candidatureFlow.handleServiceSelect(interaction);
-        if (id.startsWith("cdep:")) return candidatureFlow.handleDepartmentSelect(interaction, id.split(":")[1]);
+        // IMPORTANT : toujours "await" ici (jamais un simple "return xxx(...)").
+        // Sans await, une erreur dans le handler ne remonte PAS dans le
+        // try/catch englobant : elle devient une rejection de promesse non
+        // gérée qui PLANTE TOUT LE PROCESSUS NODE (voir incident du
+        // 15/09 : erreur Supabase "revoked_reason" ayant fait crash le bot).
+        if (id === "candidature_select_service") return await candidatureFlow.handleServiceSelect(interaction);
+        if (id.startsWith("cdep:")) return await candidatureFlow.handleDepartmentSelect(interaction, id.split(":")[1]);
         if (id.startsWith("ccnt:")) {
           const [, serviceSlug, departmentId] = id.split(":");
-          return candidatureFlow.handleCenterSelect(interaction, serviceSlug, departmentId);
+          return await candidatureFlow.handleCenterSelect(interaction, serviceSlug, departmentId);
         }
 
-        if (id.startsWith("masvc:")) return membreFlow.handleAssignServiceSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("masvc:")) return await membreFlow.handleAssignServiceSelect(interaction, id.split(":")[1]);
         if (id.startsWith("madep:")) {
           const [, targetId, serviceSlug] = id.split(":");
-          return membreFlow.handleAssignDepartmentSelect(interaction, targetId, serviceSlug);
+          return await membreFlow.handleAssignDepartmentSelect(interaction, targetId, serviceSlug);
         }
         if (id.startsWith("macnt:")) {
           const [, targetId, serviceSlug, departmentId] = id.split(":");
-          return membreFlow.handleAssignCenterSelect(interaction, targetId, serviceSlug, departmentId);
+          return await membreFlow.handleAssignCenterSelect(interaction, targetId, serviceSlug, departmentId);
         }
-        if (id.startsWith("masusp:")) return membreFlow.handleSuspendSelect(interaction, id.split(":")[1]);
-        if (id.startsWith("mareact:")) return membreFlow.handleReactivateSelect(interaction, id.split(":")[1]);
-        if (id.startsWith("maretire:")) return membreFlow.handleRevokeSelect(interaction, id.split(":")[1]);
-        if (id === "depcntmgr") return departementFlow.handleCenterManageSelect(interaction);
+        if (id.startsWith("masusp:")) return await membreFlow.handleSuspendSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("mareact:")) return await membreFlow.handleReactivateSelect(interaction, id.split(":")[1]);
+        if (id.startsWith("maretire:")) return await membreFlow.handleRevokeSelect(interaction, id.split(":")[1]);
+        if (id === "depcntmgr") return await departementFlow.handleCenterManageSelect(interaction);
         return;
       }
 
@@ -85,29 +92,32 @@ module.exports = {
       if (interaction.isButton()) {
         const id = interaction.customId;
 
+        // Voir la remarque select menus ci-dessus : toujours "await" avant
+        // de retourner l'appel, sinon une erreur crashe tout le process.
+
         // ----- Parcours candidature (confirmation / annulation) -----
-        if (id.startsWith("cconf:")) return candidatureFlow.handleConfirmButton(interaction, id.split(":")[1]);
-        if (id === "ccancel") return candidatureFlow.handleCancel(interaction);
+        if (id.startsWith("cconf:")) return await candidatureFlow.handleConfirmButton(interaction, id.split(":")[1]);
+        if (id === "ccancel") return await candidatureFlow.handleCancel(interaction);
 
         // ----- Traitement staff des candidatures -----
-        if (id.startsWith("appacc:")) return applicationReview.handleAcceptButton(interaction, id.split(":")[1]);
-        if (id.startsWith("appaccok:")) return applicationReview.handleAcceptConfirm(interaction, id.split(":")[1]);
-        if (id.startsWith("appaccno:")) return applicationReview.handleAcceptCancel(interaction);
-        if (id.startsWith("apprej:")) return applicationReview.handleRejectButton(interaction, id.split(":")[1]);
-        if (id.startsWith("appinfo:")) return applicationReview.handleInfoButton(interaction, id.split(":")[1]);
+        if (id.startsWith("appacc:")) return await applicationReview.handleAcceptButton(interaction, id.split(":")[1]);
+        if (id.startsWith("appaccok:")) return await applicationReview.handleAcceptConfirm(interaction, id.split(":")[1]);
+        if (id.startsWith("appaccno:")) return await applicationReview.handleAcceptCancel(interaction);
+        if (id.startsWith("apprej:")) return await applicationReview.handleRejectButton(interaction, id.split(":")[1]);
+        if (id.startsWith("appinfo:")) return await applicationReview.handleInfoButton(interaction, id.split(":")[1]);
 
         // ----- Affectation manuelle / suspension / réactivation / retrait -----
         if (id.startsWith("maconf:")) {
           const [, targetId, centerId] = id.split(":");
-          return membreFlow.handleAssignConfirm(interaction, targetId, centerId);
+          return await membreFlow.handleAssignConfirm(interaction, targetId, centerId);
         }
-        if (id.startsWith("mareactok:")) return membreFlow.handleReactivateConfirm(interaction, id.split(":")[1]);
+        if (id.startsWith("mareactok:")) return await membreFlow.handleReactivateConfirm(interaction, id.split(":")[1]);
 
         // ----- Gestion des centres (/departement centre-gerer) -----
-        if (id.startsWith("depopen:")) return departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], true);
-        if (id.startsWith("depclose:")) return departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], false);
-        if (id.startsWith("depact:")) return departementFlow.handleToggleActive(interaction, id.split(":")[1], true);
-        if (id.startsWith("depdeact:")) return departementFlow.handleToggleActive(interaction, id.split(":")[1], false);
+        if (id.startsWith("depopen:")) return await departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], true);
+        if (id.startsWith("depclose:")) return await departementFlow.handleToggleRecruitment(interaction, id.split(":")[1], false);
+        if (id.startsWith("depact:")) return await departementFlow.handleToggleActive(interaction, id.split(":")[1], true);
+        if (id.startsWith("depdeact:")) return await departementFlow.handleToggleActive(interaction, id.split(":")[1], false);
 
         // ----- Ouvrir un ticket -----
         if (id === "ticket_open") {
@@ -116,9 +126,41 @@ module.exports = {
           await interaction.deferReply({ ephemeral: true });
 
           const guild = interaction.guild;
+
+          // ----- Compte jeu lié : ticket unifié, synchronisé avec le jeu -----
+          // La création du salon Discord elle-même est déléguée au pont
+          // Realtime (services/supabase/support.js) : c'est LE MÊME chemin
+          // de code que pour un ticket ouvert depuis le jeu, donc le rendu
+          // est identique quelle que soit l'origine.
+          const profile = await getProfileByDiscordId(interaction.user.id);
+          if (profile) {
+            const result = await createTicketFromDiscordUser({
+              profileId: profile.id,
+              authorName: profile.username || interaction.user.username,
+              subject: `Ticket Discord — ${interaction.user.tag}`,
+              body: "Ticket ouvert depuis Discord.",
+            });
+
+            if (result.error) {
+              await interaction.editReply({
+                embeds: [errorEmbed("Erreur", "Impossible de créer ton ticket pour le moment. Réessaie dans un instant.")],
+              });
+              return;
+            }
+
+            const channel = await waitForTicketChannel(guild, result.ticket.id);
+            await interaction.editReply({
+              content: channel
+                ? `✅ Ton ticket a été créé : ${channel}`
+                : "✅ Ton ticket a été créé, le salon apparaît dans quelques secondes.",
+            });
+            return;
+          }
+
+          // ----- Compte jeu non lié : ancien comportement 100% Discord -----
           const category = findChannel(guild, config.channels.ticketCategory);
           const number = nextTicketNumber();
-          const channelName = `ticket-${number}`;
+          const channelName = `ticket-discord-${number}`;
 
           const overwrites = [
             { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -286,11 +328,12 @@ module.exports = {
       // ---------------------------------------------------------------
       if (interaction.isModalSubmit()) {
         const mid = interaction.customId;
-        if (mid.startsWith("cmodal:")) return candidatureFlow.handleModalSubmit(interaction, mid.split(":")[1]);
-        if (mid.startsWith("apprejm:")) return applicationReview.handleRejectModalSubmit(interaction, mid.split(":")[1]);
-        if (mid.startsWith("appinfom:")) return applicationReview.handleInfoModalSubmit(interaction, mid.split(":")[1]);
-        if (mid.startsWith("masuspm:")) return membreFlow.handleSuspendModalSubmit(interaction, mid.split(":")[1]);
-        if (mid.startsWith("maretm:")) return membreFlow.handleRevokeModalSubmit(interaction, mid.split(":")[1]);
+        // Toujours "await" (voir remarque plus haut).
+        if (mid.startsWith("cmodal:")) return await candidatureFlow.handleModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("apprejm:")) return await applicationReview.handleRejectModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("appinfom:")) return await applicationReview.handleInfoModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("masuspm:")) return await membreFlow.handleSuspendModalSubmit(interaction, mid.split(":")[1]);
+        if (mid.startsWith("maretm:")) return await membreFlow.handleRevokeModalSubmit(interaction, mid.split(":")[1]);
       }
 
       if (interaction.isModalSubmit() && interaction.customId === "mission_modal") {

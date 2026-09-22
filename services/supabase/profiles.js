@@ -25,4 +25,26 @@ async function getProfileByDiscordId(discordId) {
   return data;
 }
 
-module.exports = { getProfileByDiscordId };
+/**
+ * Sens inverse de getProfileByDiscordId : retrouve l'ID Discord d'un joueur
+ * à partir de son ID de profil (auth.users.id). Utilisé par le pont
+ * tickets support (services/supabase/support.js) pour savoir à qui donner
+ * accès au salon Discord d'un ticket ouvert depuis le jeu.
+ * @returns {Promise<string|null>}
+ */
+async function getDiscordIdByProfileId(profileId) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("discord_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (error) {
+    console.error("[profiles] Erreur lookup discord_id :", error.message);
+    return null;
+  }
+  return data ? data.discord_id : null;
+}
+
+module.exports = { getProfileByDiscordId, getDiscordIdByProfileId };
