@@ -14,6 +14,7 @@ module.exports = {
   name: "messageCreate",
   async execute(message) {
     if (message.author.bot) return;
+    if (message.webhookId) return; // messages du webhook "Support Jeu" (venant du jeu) : pas d'écho
     if (!message.guild) return;
 
     const body = message.content?.trim();

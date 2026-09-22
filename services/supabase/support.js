@@ -16,6 +16,11 @@
 // (elle vient de Discord). Les messages insérés par le JEU (via ses RPC)
 // n'ont jamais de discord_message_id au moment de l'insertion : ce sont eux
 // qu'on doit recopier vers Discord.
+//
+// Les messages venant du jeu ne sont JAMAIS envoyés en embed : on utilise un
+// webhook par salon de ticket pour qu'ils apparaissent comme de vrais
+// messages Discord, avec le nom (et l'avatar si connu) du joueur — voir
+// BOT_DISCORD_SUPPORT_0055.md.
 // ============================================================================
 
 const {
@@ -26,7 +31,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const { getSupabase } = require("./client");
-const { getDiscordIdByProfileId } = require("./profiles");
+const { getDiscordIdByProfileId, getProfileSummaryById } = require("./profiles");
 const { findChannel, findRole } = require("../../utils/resolve");
 const { baseEmbed } = require("../../utils/embeds");
 const config = require("../../config");
@@ -266,6 +271,25 @@ async function buildTicketChannel(guild, ticket) {
   return channel;
 }
 
+/**
+ * Récupère (ou crée) le webhook utilisé pour afficher les messages venant du
+ * jeu comme de vrais messages Discord (identité du joueur, pas d'embed) —
+ * voir BOT_DISCORD_SUPPORT_0055.md. Un seul webhook par salon, réutilisé.
+ */
+async function getOrCreateTicketWebhook(channel) {
+  try {
+    const webhooks = await channel.fetchWebhooks();
+    let webhook = webhooks.find((w) => w.name === "Support Jeu");
+    if (!webhook) {
+      webhook = await channel.createWebhook({ name: "Support Jeu" });
+    }
+    return webhook;
+  } catch (err) {
+    console.error("[support] Erreur récupération/création du webhook du ticket :", err.message);
+    return null;
+  }
+}
+
 // ----------------------------------------------------------------------
 // Handlers Realtime
 // ----------------------------------------------------------------------
@@ -291,18 +315,37 @@ async function handleNewPlayerMessage(client, row) {
     return;
   }
 
-  const sent = await channel
-    .send({
-      embeds: [
-        baseEmbed()
-          .setAuthor({ name: `${row.author_name} (jeu)` })
-          .setDescription(row.body),
-      ],
-    })
-    .catch((err) => {
-      console.error("[support] Erreur envoi message ticket vers Discord :", err.message);
-      return null;
-    });
+  const ticket = await getTicketById(row.ticket_id);
+  const profile = ticket ? await getProfileSummaryById(ticket.user_id) : null;
+  const displayName = `${row.author_name} (jeu)`.slice(0, 80);
+
+  // Message venant du jeu : PAS d'embed (voir BOT_DISCORD_SUPPORT_0055.md).
+  // On passe par un webhook pour afficher un message Discord normal avec
+  // l'identité du joueur (nom + avatar), sans le libellé "bot".
+  const webhook = await getOrCreateTicketWebhook(channel);
+  let sent = webhook
+    ? await webhook
+        .send({
+          content: row.body,
+          username: displayName,
+          avatarURL: profile?.avatar_url || undefined,
+          allowedMentions: { parse: [] },
+        })
+        .catch((err) => {
+          console.error("[support] Erreur envoi webhook ticket :", err.message);
+          return null;
+        })
+    : null;
+
+  // Repli si le webhook n'a pas pu être créé/utilisé (permissions manquantes, etc.)
+  if (!sent) {
+    sent = await channel
+      .send({ content: `**${displayName}** : ${row.body}`, allowedMentions: { parse: [] } })
+      .catch((err) => {
+        console.error("[support] Erreur envoi message ticket vers Discord :", err.message);
+        return null;
+      });
+  }
 
   if (sent) await markMessageDelivered(row.id, sent.id);
 }

@@ -47,4 +47,25 @@ async function getDiscordIdByProfileId(profileId) {
   return data ? data.discord_id : null;
 }
 
-module.exports = { getProfileByDiscordId, getDiscordIdByProfileId };
+/**
+ * Résumé minimal d'un profil (nom + avatar + ID Discord) à partir de son ID
+ * de profil (auth.users.id). Utilisé par le pont support (support.js) pour
+ * afficher l'identité du joueur dans le webhook du salon de ticket.
+ * @returns {Promise<{discord_id:string, username:string, avatar_url:string}|null>}
+ */
+async function getProfileSummaryById(profileId) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("discord_id, username, avatar_url")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (error) {
+    console.error("[profiles] Erreur lookup résumé profil :", error.message);
+    return null;
+  }
+  return data;
+}
+
+module.exports = { getProfileByDiscordId, getDiscordIdByProfileId, getProfileSummaryById };
