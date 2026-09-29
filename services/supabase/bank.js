@@ -1,11 +1,13 @@
 // ============================================================================
-// services/supabase/bank.js — banque du joueur (mise à jour 0056).
+// services/supabase/bank.js — banque du joueur, branchée sur le système
+// économique DÉJÀ existant du jeu :
+//   · public.player_wallets(user_id, credits, updated_at)  — migration 0017
+//   · public.player_transactions(...) pour l'historique     — migration 0004
 //
-// Toute écriture passe par la fonction Supabase `adjust_player_balance`
-// (security definer, transaction atomique, jamais de solde négatif).
-// Cette fonction n'est accessible qu'via la clé SERVICE_ROLE_KEY (voir
-// SUPABASE_UPDATE_0056_BANQUE_DISCORD.sql) : le jeu ne peut jamais modifier
-// un solde lui-même, seulement le lire.
+// Toute écriture passe par la fonction Supabase `bank_admin_adjust_wallet`
+// (security definer, transaction atomique, jamais de solde négatif) — voir
+// SUPABASE_UPDATE_BOT_BANQUE_DISCORD.sql. Cette fonction n'est accessible
+// qu'via la clé SERVICE_ROLE_KEY : le jeu ne peut jamais l'appeler.
 // ============================================================================
 
 const { getSupabase } = require("./client");
@@ -14,29 +16,30 @@ async function getBalance(profileId) {
   const supabase = getSupabase();
   if (!supabase) return { error: "Supabase non configuré" };
   const { data, error } = await supabase
-    .from("profiles")
-    .select("balance")
-    .eq("id", profileId)
+    .from("player_wallets")
+    .select("credits")
+    .eq("user_id", profileId)
     .maybeSingle();
   if (error) {
     console.error("[bank] Erreur getBalance :", error.message);
     return { error: error.message };
   }
-  if (!data) return { error: "Joueur introuvable" };
-  return { balance: data.balance };
+  if (!data) return { error: "Portefeuille introuvable pour ce joueur" };
+  return { balance: data.credits };
 }
 
 /**
- * Ajoute (amount > 0) ou retire (amount < 0) de l'argent au solde d'un
- * joueur, de façon atomique. Rejette (sans rien modifier) si ça ferait
- * passer le solde sous zéro.
+ * Ajoute (amount > 0) ou retire (amount < 0) des crédits du portefeuille
+ * d'un joueur, de façon atomique. Rejette (sans rien modifier) si ça ferait
+ * passer le solde sous zéro. Journalise l'opération dans
+ * player_transactions comme n'importe quelle autre transaction du jeu.
  */
 async function adjustBalance({ profileId, amount, reason, actorDiscordId }) {
   const supabase = getSupabase();
   if (!supabase) return { error: "Supabase non configuré" };
 
-  const { data, error } = await supabase.rpc("adjust_player_balance", {
-    p_profile_id: profileId,
+  const { data, error } = await supabase.rpc("bank_admin_adjust_wallet", {
+    p_user_id: profileId,
     p_amount: amount,
     p_reason: reason || null,
     p_actor_discord_id: actorDiscordId,
@@ -48,7 +51,7 @@ async function adjustBalance({ profileId, amount, reason, actorDiscordId }) {
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  return { balance: row ? row.balance : null };
+  return { balance: row ? row.credits : null };
 }
 
 module.exports = { getBalance, adjustBalance };

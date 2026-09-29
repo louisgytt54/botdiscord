@@ -1,8 +1,11 @@
 // ============================================================================
-// /banque — ajouter, retirer ou consulter l'argent d'un joueur (mise à jour
-// 0056). RÉSERVÉ à une seule personne : l'ID Discord défini dans .env
-// (BANK_ADMIN_DISCORD_ID). Ce n'est PAS une restriction par rôle : même le
-// COMMANDEMENT ne peut pas l'utiliser, uniquement le compte configuré.
+// /banque — ajouter, retirer ou consulter les crédits d'un joueur. Écrit
+// directement dans le système économique déjà existant du jeu
+// (player_wallets.credits + journal player_transactions), voir
+// SUPABASE_UPDATE_BOT_BANQUE_DISCORD.sql. RÉSERVÉ à une seule personne :
+// l'ID Discord défini dans .env (BANK_ADMIN_DISCORD_ID). Ce n'est PAS une
+// restriction par rôle : même le COMMANDEMENT ne peut pas l'utiliser,
+// uniquement le compte configuré.
 // ============================================================================
 
 const { SlashCommandBuilder } = require("discord.js");
@@ -35,11 +38,11 @@ async function resolveProfileOrReply(interaction, joueur) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("banque")
-    .setDescription("Gère l'argent en jeu d'un joueur (réservé)")
+    .setDescription("Gère les crédits en jeu d'un joueur (réservé)")
     .addSubcommand((sub) =>
       sub
         .setName("ajouter")
-        .setDescription("Ajoute de l'argent au compte d'un joueur")
+        .setDescription("Ajoute des crédits au portefeuille d'un joueur")
         .addUserOption((opt) =>
           opt.setName("joueur").setDescription("Le joueur concerné").setRequired(true)
         )
@@ -53,7 +56,7 @@ module.exports = {
     .addSubcommand((sub) =>
       sub
         .setName("retirer")
-        .setDescription("Retire de l'argent du compte d'un joueur")
+        .setDescription("Retire des crédits du portefeuille d'un joueur")
         .addUserOption((opt) =>
           opt.setName("joueur").setDescription("Le joueur concerné").setRequired(true)
         )
@@ -105,7 +108,7 @@ module.exports = {
         embeds: [
           baseEmbed()
             .setTitle("💰 Solde")
-            .setDescription(`**${joueur}** : ${result.balance} €`),
+            .setDescription(`**${joueur}** : ${result.balance} crédits`),
         ],
       });
       return;
@@ -137,23 +140,25 @@ module.exports = {
       embeds: [
         successEmbed(
           "Opération effectuée",
-          `**${montant} €** ${verbe} la banque de ${joueur}.\nNouveau solde : **${result.balance} €**${
+          `**${montant} crédits** ${verbe} la banque de ${joueur}.\nNouveau solde : **${result.balance} crédits**${
             raison ? `\nRaison : ${raison}` : ""
           }`
         ),
       ],
     });
 
-    // Traçabilité : toute manipulation d'argent est loggée (salon mod-logs).
+    // Traçabilité : toute manipulation de crédits est loggée (salon mod-logs)
+    // ET journalisée dans player_transactions (visible côté jeu comme
+    // n'importe quelle autre transaction).
     await log(
       interaction.guild,
       "mod",
       baseEmbed()
-        .setTitle(sub === "ajouter" ? "💰 Ajout d'argent (banque)" : "💸 Retrait d'argent (banque)")
+        .setTitle(sub === "ajouter" ? "💰 Ajout de crédits (banque)" : "💸 Retrait de crédits (banque)")
         .addFields(
           { name: "Joueur", value: `${joueur}`, inline: true },
-          { name: "Montant", value: `${montant} €`, inline: true },
-          { name: "Nouveau solde", value: `${result.balance} €`, inline: true },
+          { name: "Montant", value: `${montant} crédits`, inline: true },
+          { name: "Nouveau solde", value: `${result.balance} crédits`, inline: true },
           { name: "Effectué par", value: `${interaction.user}`, inline: false },
           { name: "Raison", value: raison || "Aucune raison fournie", inline: false }
         )
