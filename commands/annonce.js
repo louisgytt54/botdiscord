@@ -6,7 +6,6 @@
 
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits,
   ChannelType,
 } = require("discord.js");
 const config = require("../config");
@@ -53,8 +52,11 @@ module.exports = {
         .setName("couleur")
         .setDescription("Couleur hex de l'embed, ex: #c0392b (optionnel)")
         .setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
+    // Pas de setDefaultMemberPermissions : cette restriction Discord native
+    // cache la commande selon une permission Discord, indépendamment du
+    // rôle COMMANDEMENT vérifié juste en dessous (hasStaffRole) — même bug
+    // que celui corrigé sur /membre. Le check de rôle dans le code suffit.
 
   async execute(interaction) {
     const member = interaction.member;

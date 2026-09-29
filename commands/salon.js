@@ -55,8 +55,9 @@ module.exports = {
         .addChannelOption((o) =>
           o.setName("salon").setDescription("Salon à supprimer").setRequired(true)
         )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    ),
+    // Pas de setDefaultMemberPermissions (voir membre.js) : hasStaffRole()
+    // ci-dessous suffit.
 
   async execute(interaction) {
     if (!hasStaffRole(interaction.member, [config.roles.commandement])) {

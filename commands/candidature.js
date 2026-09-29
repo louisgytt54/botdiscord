@@ -6,7 +6,6 @@
 
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits,
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } = require("discord.js");
@@ -23,8 +22,9 @@ module.exports = {
       sub
         .setName("panneau")
         .setDescription("Poster le panneau « Rejoindre un service » dans ce salon")
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    ),
+    // Pas de setDefaultMemberPermissions (voir membre.js) : isRecruiter()
+    // ci-dessous suffit.
 
   async execute(interaction) {
     if (!isRecruiter(interaction.member)) {

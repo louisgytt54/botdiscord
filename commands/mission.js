@@ -7,7 +7,6 @@
 
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -24,8 +23,9 @@ module.exports = {
       sub
         .setName("panneau")
         .setDescription("Poster le panneau de proposition de mission dans ce salon")
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
+    // Pas de setDefaultMemberPermissions (voir membre.js) : hasStaffRole()
+    // ci-dessous suffit.
 
   async execute(interaction) {
     if (!hasStaffRole(interaction.member, [config.roles.commandement])) {

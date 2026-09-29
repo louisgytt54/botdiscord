@@ -3,7 +3,7 @@
 // Toutes protégées par le rôle COMMANDEMENT et loggées dans #mod-logs.
 // ============================================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 const config = require("../config");
 const { hasStaffRole } = require("../utils/resolve");
 const { successEmbed, errorEmbed, modLogEmbed, baseEmbed } = require("../utils/embeds");
@@ -72,8 +72,9 @@ module.exports = {
         .setName("clearwarnings")
         .setDescription("Effacer les avertissements d'un membre")
         .addUserOption((o) => o.setName("membre").setDescription("Membre concerné").setRequired(true))
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    ),
+    // Pas de setDefaultMemberPermissions (voir membre.js) : checkStaff()
+    // ci-dessous suffit.
 
   async execute(interaction) {
     const denial = checkStaff(interaction);

@@ -5,7 +5,7 @@
 //   /role retirer <membre> <role>    → retire un rôle géré par le bot
 // ============================================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 const config = require("../config");
 const { hasStaffRole, findRole } = require("../utils/resolve");
 const { successEmbed, errorEmbed } = require("../utils/embeds");
@@ -65,8 +65,9 @@ module.exports = {
               { name: "Opérateur", value: "Opérateur" }
             )
         )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    ),
+    // Pas de setDefaultMemberPermissions (voir membre.js) : hasStaffRole()
+    // ci-dessous suffit.
 
   async execute(interaction) {
     const staff = interaction.member;

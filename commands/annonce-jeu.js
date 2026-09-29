@@ -8,7 +8,6 @@
 
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits,
   ChannelType,
 } = require("discord.js");
 const config = require("../config");
@@ -48,8 +47,9 @@ module.exports = {
         .setDescription("Salon Discord où publier l'annonce (par défaut : le salon actuel)")
         .addChannelTypes(ChannelType.GuildText)
         .setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
+    // Pas de setDefaultMemberPermissions (voir annonce.js / membre.js) : le
+    // check de rôle hasStaffRole ci-dessous suffit.
 
   async execute(interaction) {
     if (!hasStaffRole(interaction.member, [config.roles.commandement, ...config.roles.moderation])) {

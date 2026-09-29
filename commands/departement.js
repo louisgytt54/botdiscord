@@ -3,7 +3,7 @@
 // Rien n'est codé en dur : tout passe par Supabase (services/supabase/catalog.js).
 // ============================================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const { baseEmbed, successEmbed, errorEmbed } = require("../utils/embeds");
 const { isRecruiter } = require("../services/permissions");
 const { SERVICES } = require("../config/services");
@@ -18,7 +18,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("departement")
     .setDescription("Administration des départements et centres opérationnels")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    // Pas de setDefaultMemberPermissions (voir membre.js) : isRecruiter()
+    // ci-dessous suffit.
     .addSubcommand((sub) =>
       sub
         .setName("ajouter-departement")

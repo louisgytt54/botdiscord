@@ -4,7 +4,7 @@
 // prochain affichage du panneau Alliance, sans déploiement.
 // ============================================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 const { baseEmbed, successEmbed, errorEmbed } = require("../utils/embeds");
 const { isRecruiter } = require("../services/permissions");
 const { SERVICES } = require("../config/services");
@@ -22,7 +22,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("formation")
     .setDescription("Gestion du catalogue de formations du jeu")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    // Pas de setDefaultMemberPermissions (voir membre.js) : isRecruiter()
+    // ci-dessous suffit.
     .addSubcommand((sub) =>
       sub
         .setName("creer")
