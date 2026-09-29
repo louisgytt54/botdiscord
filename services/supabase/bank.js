@@ -51,7 +51,7 @@ async function adjustBalance({ profileId, amount, reason, actorDiscordId }) {
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  return { balance: row ? row.credits : null };
+  return { balance: row ? row.new_balance : null };
 }
 
 module.exports = { getBalance, adjustBalance };

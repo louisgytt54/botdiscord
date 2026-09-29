@@ -15,13 +15,18 @@
 -- autre transaction du jeu.
 -- ══════════════════════════════════════════════════════════════
 
+-- "create or replace" ne peut pas changer le type de retour d'une fonction
+-- existante (ici le nom de la colonne de sortie change) : on la supprime
+-- d'abord si une version précédente a déjà été exécutée.
+drop function if exists public.bank_admin_adjust_wallet(uuid, bigint, text, text);
+
 create or replace function public.bank_admin_adjust_wallet(
   p_user_id uuid,
   p_amount bigint,
   p_reason text,
   p_actor_discord_id text
 )
-returns table (credits bigint)
+returns table (new_balance bigint)
 language plpgsql
 security definer
 set search_path = public
@@ -45,7 +50,12 @@ begin
   values (p_user_id, 0)
   on conflict (user_id) do nothing;
 
-  select credits into v_current
+  -- Référence qualifiée (public.player_wallets.credits) : le nom de
+  -- colonne "credits" tout court était auparavant ambigu avec le nom du
+  -- paramètre de sortie de la fonction (RETURNS TABLE), d'où l'erreur
+  -- "column reference is ambiguous" — la colonne de sortie s'appelle
+  -- maintenant new_balance pour écarter toute ambiguïté future.
+  select public.player_wallets.credits into v_current
   from public.player_wallets
   where user_id = p_user_id
   for update;
