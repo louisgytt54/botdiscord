@@ -62,6 +62,13 @@ module.exports = {
     // Salon où sont envoyées les propositions de mission (idées d'ajout de
     // missions) faites via /mission, avec boutons Accepter/Refuser
     missionsPropositions: "propositions-missions",
+
+    // Salon "carte régulateur" : créé automatiquement si absent, en lecture
+    // seule pour tout le monde. Le bot y poste une image (arrivée/départ)
+    // à chaque fois qu'un membre rejoint ou quitte le serveur — voir
+    // events/guildMemberAdd.js, events/guildMemberRemove.js et
+    // utils/welcomeCard.js.
+    regulateurWelcome: "nouveau-regulateur",
   },
 
   // ----------------------------------------------------------------------

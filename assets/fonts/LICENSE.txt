@@ -1,0 +1,10 @@
+Police embarquée : Poppins (Poppins-Bold.ttf, Poppins-Medium.ttf, Poppins-Regular.ttf)
+Auteur : Indian Type Foundry
+Licence : SIL Open Font License 1.1 (https://openfontlicense.org)
+
+Cette police est libre de droits et redistribuable (y compris dans un
+projet privé/commercial) tant que cette notice de licence est conservée.
+Elle est embarquée ici pour que les cartes générées par
+utils/welcomeCard.js s'affichent correctement même sur un hébergeur dont
+l'image système ne contient aucune police (cas fréquent sur les
+containers ecloudserv/Pterodactyl minimalistes).
