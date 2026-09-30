@@ -16,7 +16,14 @@ module.exports = {
 
     // Rôle "admin" du bot (accès aux commandes sensibles : modération, annonces,
     // gestion des rôles, tickets, etc.)
-    commandement: "COMMANDEMENT",
+    // Configuré par ID (et non par nom) : un nom de rôle est fragile (espace
+    // en trop, emoji collé au nom, casse différente sur un caractère
+    // accentué...) et la comparaison échoue alors silencieusement, même si
+    // le rôle a l'air identique à l'œil. C'est ce qui empêchait un membre
+    // ayant pourtant le rôle COMMANDEMENT d'utiliser certaines commandes.
+    // Pour récupérer l'ID d'un rôle : Discord > Paramètres > Avancé >
+    // activer le Mode développeur, puis clic droit sur le rôle > Copier l'ID.
+    commandement: "1547947731400785920", // COMMANDEMENT
 
     // Rôles "identité de service" — NE JAMAIS supprimer ni recréer ces rôles,
     // ils servent uniquement à savoir qui est pompier / policier / etc.
@@ -27,7 +34,7 @@ module.exports = {
     operateur: "Opérateur",
 
     // Rôles autorisés à utiliser les commandes de modération (en plus de COMMANDEMENT)
-    moderation: ["COMMANDEMENT"],
+    moderation: ["1547947731400785920"], // COMMANDEMENT
   },
 
   // ----------------------------------------------------------------------

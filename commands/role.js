@@ -7,7 +7,7 @@
 
 const { SlashCommandBuilder } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole, findRole } = require("../utils/resolve");
+const { hasStaffRole, findRole, roleLabel } = require("../utils/resolve");
 const { successEmbed, errorEmbed } = require("../utils/embeds");
 const { log } = require("../utils/logger");
 const { baseEmbed } = require("../utils/embeds");
@@ -76,7 +76,7 @@ module.exports = {
         embeds: [
           errorEmbed(
             "Permission refusée",
-            `Seul le rôle **${config.roles.commandement}** peut gérer les rôles.`
+            `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut gérer les rôles.`
           ),
         ],
         ephemeral: true,
@@ -106,7 +106,7 @@ module.exports = {
           embeds: [
             errorEmbed(
               "Rôle introuvable",
-              `Le rôle **${config.roles.commandement}** n'existe pas sur ce serveur.`
+              `Le rôle ${roleLabel(interaction.guild, config.roles.commandement)} n'existe pas sur ce serveur.`
             ),
           ],
         });
@@ -116,7 +116,7 @@ module.exports = {
         embeds: [
           successEmbed(
             "Promotion effectuée",
-            `${targetMember} a été promu **${config.roles.commandement}**.`
+            `${targetMember} a été promu ${role}.`
           ),
         ],
       });
@@ -126,7 +126,7 @@ module.exports = {
         baseEmbed()
           .setTitle("👑 Promotion COMMANDEMENT")
           .setDescription(
-            `${targetMember} promu par ${interaction.user} au rôle **${config.roles.commandement}**.`
+            `${targetMember} promu par ${interaction.user} au rôle ${role}.`
           )
       );
       return;

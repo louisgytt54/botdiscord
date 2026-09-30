@@ -9,7 +9,7 @@ const {
   ChannelType,
 } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole, findChannel } = require("../utils/resolve");
+const { hasStaffRole, findChannel, findRole, roleLabel } = require("../utils/resolve");
 const { successEmbed, errorEmbed } = require("../utils/embeds");
 const { log } = require("../utils/logger");
 const { baseEmbed } = require("../utils/embeds");
@@ -65,7 +65,7 @@ module.exports = {
         embeds: [
           errorEmbed(
             "Permission refusée",
-            `Seul le rôle **${config.roles.commandement}** peut gérer les salons.`
+            `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut gérer les salons.`
           ),
         ],
         ephemeral: true,
@@ -100,9 +100,7 @@ module.exports = {
           id: interaction.guild.roles.everyone.id,
           deny: [PermissionFlagsBits.ViewChannel],
         });
-        const cmdRole = interaction.guild.roles.cache.find(
-          (r) => r.name.toLowerCase() === config.roles.commandement.toLowerCase()
-        );
+        const cmdRole = findRole(interaction.guild, config.roles.commandement);
         if (cmdRole) {
           overwrites.push({
             id: cmdRole.id,

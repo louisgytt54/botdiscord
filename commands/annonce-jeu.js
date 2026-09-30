@@ -11,7 +11,7 @@ const {
   ChannelType,
 } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole } = require("../utils/resolve");
+const { hasStaffRole, roleLabel } = require("../utils/resolve");
 const { baseEmbed, errorEmbed, warningEmbed } = require("../utils/embeds");
 const { insertAnnouncement, PRIORITY_LABELS } = require("../services/supabase/support");
 
@@ -57,7 +57,7 @@ module.exports = {
         embeds: [
           errorEmbed(
             "Permission refusée",
-            `Seul le rôle **${config.roles.commandement}** peut utiliser cette commande.`
+            `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut utiliser cette commande.`
           ),
         ],
         ephemeral: true,

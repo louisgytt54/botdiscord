@@ -14,7 +14,7 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 const config = require("../config");
-const { findRole, findChannel, hasStaffRole } = require("../utils/resolve");
+const { findRole, findChannel, hasStaffRole, roleLabel } = require("../utils/resolve");
 const { baseEmbed, successEmbed, errorEmbed } = require("../utils/embeds");
 const { log } = require("../utils/logger");
 const { nextTicketNumber } = require("../utils/storage");
@@ -276,7 +276,7 @@ module.exports = {
         if (id.startsWith("mission_accept_") || id.startsWith("mission_refuse_")) {
           if (!hasStaffRole(interaction.member, [config.roles.commandement])) {
             return interaction.reply({
-              embeds: [errorEmbed("Permission refusée", `Seul le rôle **${config.roles.commandement}** peut traiter les propositions de mission.`)],
+              embeds: [errorEmbed("Permission refusée", `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut traiter les propositions de mission.`)],
               ephemeral: true,
             });
           }

@@ -5,7 +5,7 @@
 
 const { SlashCommandBuilder } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole } = require("../utils/resolve");
+const { hasStaffRole, roleLabel } = require("../utils/resolve");
 const { successEmbed, errorEmbed, modLogEmbed, baseEmbed } = require("../utils/embeds");
 const { log } = require("../utils/logger");
 const { addWarning, getWarnings, clearWarnings } = require("../utils/storage");
@@ -14,7 +14,7 @@ function checkStaff(interaction) {
   if (!hasStaffRole(interaction.member, config.roles.moderation.concat(config.roles.commandement))) {
     return errorEmbed(
       "Permission refusée",
-      `Seul le rôle **${config.roles.commandement}** peut utiliser les commandes de modération.`
+      `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut utiliser les commandes de modération.`
     );
   }
   return null;

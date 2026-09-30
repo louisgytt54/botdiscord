@@ -11,7 +11,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const config = require("../config");
-const { hasStaffRole } = require("../utils/resolve");
+const { hasStaffRole, roleLabel } = require("../utils/resolve");
 const { errorEmbed, baseEmbed } = require("../utils/embeds");
 
 module.exports = {
@@ -32,7 +32,7 @@ module.exports = {
         embeds: [
           errorEmbed(
             "Permission refusée",
-            `Seul le rôle **${config.roles.commandement}** peut poster le panneau de tickets.`
+            `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut poster le panneau de tickets.`
           ),
         ],
         ephemeral: true,

@@ -6,7 +6,7 @@
 // ============================================================================
 
 const config = require("../config");
-const { findChannel, hasStaffRole } = require("../utils/resolve");
+const { findChannel, hasStaffRole, roleLabel } = require("../utils/resolve");
 const { baseEmbed } = require("../utils/embeds");
 
 module.exports = {
@@ -22,7 +22,7 @@ module.exports = {
     if (!hasStaffRole(message.member, [config.roles.commandement, ...config.roles.moderation])) {
       // On laisse un petit message d'explication, supprimé après quelques secondes.
       const warn = await message.reply({
-        content: `⚠️ Ce salon est réservé aux annonces officielles. Seul le rôle **${config.roles.commandement}** peut y écrire.`,
+        content: `⚠️ Ce salon est réservé aux annonces officielles. Seul le rôle ${roleLabel(message.guild, config.roles.commandement)} peut y écrire.`,
       });
       await message.delete().catch(() => {});
       setTimeout(() => warn.delete().catch(() => {}), 6000);

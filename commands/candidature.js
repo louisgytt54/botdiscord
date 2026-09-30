@@ -11,6 +11,7 @@ const {
 } = require("discord.js");
 const config = require("../config");
 const { isRecruiter } = require("../services/permissions");
+const { roleLabel } = require("../utils/resolve");
 const { errorEmbed, baseEmbed } = require("../utils/embeds");
 const { listServiceRows } = require("../services/supabase/catalog");
 
@@ -32,7 +33,7 @@ module.exports = {
         embeds: [
           errorEmbed(
             "Permission refusée",
-            `Seul le rôle **${config.roles.commandement}** peut poster le panneau de candidature.`
+            `Seul le rôle ${roleLabel(interaction.guild, config.roles.commandement)} peut poster le panneau de candidature.`
           ),
         ],
         ephemeral: true,

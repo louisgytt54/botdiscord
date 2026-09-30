@@ -3,7 +3,7 @@
 // info | affecter | suspendre | reactiver | retirer
 // ============================================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const { baseEmbed, errorEmbed } = require("../utils/embeds");
 const { isRecruiter } = require("../services/permissions");
 const { getProfileByDiscordId } = require("../services/supabase/profiles");
@@ -21,7 +21,12 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("membre")
     .setDescription("Gestion des affectations d'un membre")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    // Pas de setDefaultMemberPermissions ici : cette restriction Discord
+    // native cache carrément la commande pour quiconque n'a pas la
+    // permission "Gérer les rôles" — indépendamment du rôle COMMANDEMENT,
+    // ce qui causait exactement le bug "un membre COMMANDEMENT ne voit pas
+    // /membre". La vérification isRecruiter() ci-dessous (rôle COMMANDEMENT)
+    // est la seule barrière de sécurité, et elle est suffisante.
     .addSubcommand((sub) =>
       sub
         .setName("info")
